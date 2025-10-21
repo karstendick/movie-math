@@ -497,7 +497,7 @@ def build_faiss_index(embeddings):
 def save_index_and_embeddings(index, embeddings, movies_df, output_dir):
     """
     Save FAISS index, embeddings, and movie metadata to disk
-    
+
     Files to create:
     - faiss_index.bin
     - embeddings.npy
@@ -525,7 +525,7 @@ def save_index_and_embeddings(index, embeddings, movies_df, output_dir):
 def load_search_system(index_dir):
     """
     Load FAISS index, embeddings, and metadata
-    
+
     Returns:
         (model, index, movies_df)
     """
@@ -845,15 +845,15 @@ if __name__ == "__main__":
 ## Implementation Checklist
 
 ### Phase 0: Project Setup (10 minutes)
-- [ ] Create project structure (directories: data/raw, data/processed, data/index, src)
-- [ ] Create .gitignore file
-- [ ] Create requirements.txt
-- [ ] Create requirements-dev.txt (linting tools)
-- [ ] Create pre-commit config
-- [ ] Create GitHub Actions workflow
-- [ ] Create virtual environment and install dependencies
-- [ ] Initialize git repository
-- [ ] Install pre-commit hooks
+- [x] Create project structure (directories: data/raw, data/processed, data/index, src)
+- [x] Create .gitignore file
+- [x] Create requirements.txt
+- [x] Create requirements-dev.txt (linting tools)
+- [x] Create pre-commit config
+- [x] Create GitHub Actions workflow
+- [x] Create virtual environment and install dependencies
+- [x] Initialize git repository
+- [x] Install pre-commit hooks
 
 ### Phase 1: Data Preparation (30 minutes)
 - [ ] Get TMDb API key and add to .env

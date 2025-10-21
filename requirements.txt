@@ -1,12 +1,11 @@
-pandas~=2.0.0
-numpy~=1.24.0
-sentence-transformers~=2.2.0
-faiss-cpu~=1.7.4
-streamlit~=1.28.0
-pillow~=10.0.0
-python-dotenv~=1.0.0
-requests~=2.31.0
+pandas>=2.0.0,<3.0.0
+numpy>=1.24.0,<2.0.0
+sentence-transformers>=2.2.0,<4.0.0
+faiss-cpu>=1.7.4
+streamlit>=1.28.0
+pillow>=10.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
 
-# Note: Using ~= (compatible release) instead of >= for stability
-# ~=2.0.0 allows 2.0.x and 2.x.x but not 3.0.0
-# Prevents breaking changes from major version updates
+# Note: Using >= with upper bounds for Python 3.12 compatibility
+# This allows newer patch and minor versions while preventing breaking changes
