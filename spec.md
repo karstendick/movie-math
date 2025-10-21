@@ -1,14 +1,14 @@
-# Movie Semantic Search - RAG Project Implementation Guide
+# Movie Math: Semantic Search using RAG
 
 ## Project Overview
 
-Build a semantic movie search application using Retrieval-Augmented Generation (RAG). Users can search for movies by themes, vibes, and moods - not just genres. The system uses vector embeddings to find semantically similar movies.
+Build a semantic movie search application using Retrieval-Augmented Generation (RAG) in order to learn the concept and build up my portfolio. Users can search for movies by themes, vibes, and moods - not just genres. The system uses vector embeddings to find semantically similar movies.
 
 **Tech Stack:**
 - Sentence Transformers (local embeddings)
 - FAISS (local vector database)
 - Streamlit (web interface)
-- TMDb dataset (movies with poster images)
+- TMDb API (movies with poster images)
 
 **Total Cost: $0** (everything runs locally)
 
@@ -17,9 +17,12 @@ Build a semantic movie search application using Retrieval-Augmented Generation (
 ## Project Structure
 
 ```
-movie-rag/
+movie-math/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                # GitHub Actions CI/CD
 ├── data/
-│   ├── raw/                      # Downloaded datasets
+│   ├── raw/                      # Raw API responses (cached)
 │   ├── processed/                # Cleaned data
 │   └── index/                    # FAISS index and embeddings
 ├── src/
@@ -27,7 +30,10 @@ movie-rag/
 │   ├── embeddings.py             # Generate embeddings
 │   ├── search.py                 # Search functionality
 │   └── app.py                    # Streamlit UI
-├── requirements.txt
+├── .gitignore
+├── .pre-commit-config.yaml       # Pre-commit hooks config
+├── requirements.txt              # Production dependencies
+├── requirements-dev.txt          # Development dependencies
 ├── setup.py                      # One-time data setup script
 └── README.md
 ```
@@ -36,16 +42,149 @@ movie-rag/
 
 ## Step 1: Environment Setup
 
+### Create `.gitignore`
+
+```
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Environment
+.env
+
+# Data (raw and processed - regenerate with setup.py)
+data/raw/
+data/processed/
+
+# OS
+.DS_Store
+.vscode/
+.idea/
+
+# Note: data/index/ SHOULD be committed for deployment
+# Index files (~60-80MB) are under GitHub's 100MB limit
+```
+
 ### Requirements (`requirements.txt`)
 
 ```
-pandas>=2.0.0
-numpy>=1.24.0
-sentence-transformers>=2.2.0
-faiss-cpu>=1.7.4
-streamlit>=1.28.0
-pillow>=10.0.0
-python-dotenv>=1.0.0
+pandas~=2.0.0
+numpy~=1.24.0
+sentence-transformers~=2.2.0
+faiss-cpu~=1.7.4
+streamlit~=1.28.0
+pillow~=10.0.0
+python-dotenv~=1.0.0
+requests~=2.31.0
+
+# Note: Using ~= (compatible release) instead of >= for stability
+# ~=2.0.0 allows 2.0.x and 2.x.x but not 3.0.0
+# Prevents breaking changes from major version updates
+```
+
+### Dev Requirements (`requirements-dev.txt`)
+
+```
+# Linting and code quality
+black~=23.0.0
+flake8~=6.0.0
+isort~=5.12.0
+mypy~=1.5.0
+
+# Pre-commit hooks
+pre-commit~=3.3.0
+
+# Future: Testing (when added in V2)
+# pytest~=7.4.0
+# pytest-cov~=4.1.0
+```
+
+### Pre-commit Configuration (`.pre-commit-config.yaml`)
+
+```yaml
+repos:
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        language_version: python3.11
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+        args: ["--max-line-length=88", "--extend-ignore=E203,W503"]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=102400']  # 100MB limit
+```
+
+### GitHub Actions Workflow (`.github/workflows/ci.yml`)
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+
+    - name: Run Black
+      run: black --check src/ setup.py
+
+    - name: Run isort
+      run: isort --check-only --profile black src/ setup.py
+
+    - name: Run Flake8
+      run: flake8 src/ setup.py --max-line-length=88 --extend-ignore=E203,W503
+
+    # Future: Add test job when tests are implemented
+    # test:
+    #   runs-on: ubuntu-latest
+    #   steps:
+    #   - uses: actions/checkout@v3
+    #   - name: Set up Python
+    #     uses: actions/setup-python@v4
+    #     with:
+    #       python-version: '3.11'
+    #   - name: Install dependencies
+    #     run: |
+    #       pip install -r requirements.txt
+    #       pip install -r requirements-dev.txt
+    #   - name: Run tests
+    #     run: pytest tests/
 ```
 
 ### Installation
@@ -53,33 +192,42 @@ python-dotenv>=1.0.0
 ```bash
 # Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
+
+# Install pre-commit hooks
+pre-commit install
 ```
 
 ---
 
 ## Step 2: Data Acquisition
 
-### Download TMDb Dataset
+### Get TMDb API Key
 
-**Source:** https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata
+**Source:** https://www.themoviedb.org/settings/api
 
-**Files needed:**
-- `tmdb_5000_movies.csv` (~5MB)
-- `tmdb_5000_credits.csv` (~40MB)
+**Steps:**
+1. Create free TMDb account at https://www.themoviedb.org/signup
+2. Go to Settings > API
+3. Request API key (select "Developer" option)
+4. Copy your API key (v3 auth)
 
-**Alternative:** Use Kaggle API
-
+**Setup:**
 ```bash
-pip install kaggle
-
-# Setup: Place kaggle.json in ~/.kaggle/
-kaggle datasets download -d tmdb/tmdb-movie-metadata
-unzip tmdb-movie-metadata.zip -d data/raw/
+# Create .env file in project root
+echo "TMDB_API_KEY=your_api_key_here" > .env
 ```
+
+**API Details:**
+- Free tier: 50 requests/second
+- Unlimited daily requests
+- Use `/discover/movie` endpoint to fetch movies
+- Fetch all movies with sufficient votes (default: 50+ votes, configurable in code)
+- Expected: ~10,000-15,000 movies with complete data (includes classics from 1920s-2020s)
 
 ---
 
@@ -89,16 +237,111 @@ unzip tmdb-movie-metadata.zip -d data/raw/
 
 **Purpose:** Load, clean, and prepare movie data
 
+**Logging:**
+```python
+import logging
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Log key events:
+# - Number of movies fetched from API
+# - Data cleaning steps (how many removed, why)
+# - Warnings for missing data
+```
+
+**Configuration Constants:**
+```python
+# Configurable thresholds - adjust these to tune dataset quality
+MIN_VOTE_COUNT = 50  # Minimum votes to include a movie
+MIN_VOTE_AVERAGE = 0  # Minimum rating (0 = no filter)
+# Lower MIN_VOTE_COUNT includes more indie/art films
+# Higher MIN_VOTE_COUNT focuses on popular/well-known movies
+```
+
 **Key Functions:**
 
 ```python
-def load_tmdb_data(movies_path, credits_path):
+def fetch_movies_from_api(api_key, min_votes=50, pages_per_sort=50):
     """
-    Load TMDb movies and credits data
-    
+    Fetch movies from TMDb API
+
+    Uses /discover/movie endpoint with pagination
+    Strategy: Fetch movies sorted by different criteria to get comprehensive coverage
+    - Sort by popularity (most popular movies)
+    - Sort by vote_count (most reviewed movies)
+    - Sort by vote_average (highest rated movies with min votes filter)
+
+    This approach ensures we get both classics and recent films that people
+    actually know about, without arbitrary year cutoffs.
+
+    Caching:
+    - Save raw API responses to data/raw/ for debugging/re-processing
+    - Cache allows re-running data preparation without re-fetching from API
+    - Skip API calls if raw data already exists (unless --refresh flag used)
+
+    Error handling:
+    - Retry failed requests up to 3 times with exponential backoff
+    - Handle rate limiting (429 status) by waiting and retrying
+    - Validate API key before starting (test with simple request)
+    - Clear error messages for network failures
+    - Log progress so partial data isn't lost
+
+    Args:
+        api_key: TMDb API key from .env
+        min_votes: Minimum vote count filter (default 50, configurable)
+        pages_per_sort: Pages to fetch per sort method (default 50)
+
     Returns:
-        DataFrame with columns: id, title, overview, genres, year, 
-        rating, votes, poster_url, director, cast
+        DataFrame with columns: id, title, overview, genres, year,
+        rating, votes, poster_path, popularity
+
+    Raises:
+        ValueError: If API key is invalid
+        requests.RequestException: If network request fails after retries
+    """
+    pass
+
+def fetch_movie_credits(api_key, movie_id):
+    """
+    Fetch director and cast for a specific movie
+
+    Uses /movie/{movie_id}/credits endpoint
+
+    Extraction:
+    - Director: First crew member with job == "Director"
+    - Cast: First 5 actors by billing order (sorted by 'order' field)
+      - order: 0 = top billing, order: 1 = second billing, etc.
+      - TMDb API returns cast pre-sorted by billing order
+      - Simply take cast[:5]
+
+    Error handling:
+    - Retry failed requests up to 3 times
+    - Skip movie if credits unavailable (log warning)
+    - Continue processing other movies on failure
+
+    Returns:
+        dict with 'director' (string) and 'cast' (list of 5 names)
+        Example: {'director': 'Christopher Nolan', 'cast': ['Leonardo DiCaprio', 'Joseph Gordon-Levitt', ...]}
+        Returns None if credits unavailable
+    """
+    pass
+
+def load_tmdb_data_from_api(api_key):
+    """
+    Complete data loading from TMDb API
+
+    1. Fetch all movies using fetch_movies_from_api()
+    2. Fetch credits for each movie (with progress bar)
+    3. Combine into single DataFrame
+
+    Returns:
+        DataFrame with columns: id, title, overview, genres, year,
+        rating, votes, poster_path, director, cast
     """
     pass
 
@@ -108,12 +351,15 @@ def clean_movies(movies_df):
     - Remove movies without plots (overview)
     - Remove movies without posters
     - Remove adult content
-    - Parse genres from JSON strings to lists
-    - Extract year from release_date
-    - Filter to movies with at least 100 votes
-    
+    - Parse genres from JSON to list of names:
+      Input: [{"id": 18, "name": "Drama"}, {"id": 53, "name": "Thriller"}]
+      Output: ["Drama", "Thriller"]
+      Use: [g['name'] for g in movie['genres']]
+    - Extract year from release_date (YYYY-MM-DD → YYYY)
+    - Filter using MIN_VOTE_COUNT constant (defined above)
+
     Returns:
-        Cleaned DataFrame
+        Cleaned DataFrame with genres as list of strings
     """
     pass
 
@@ -121,7 +367,11 @@ def add_poster_urls(movies_df):
     """
     Convert poster_path to full TMDb CDN URLs
     Format: https://image.tmdb.org/t/p/w500{poster_path}
-    
+
+    Add fallback for missing posters:
+    - If poster_path is null/empty, use placeholder
+    - Placeholder options: 🎬 emoji, data URI, or static image
+
     Returns:
         DataFrame with poster_url column
     """
@@ -131,9 +381,19 @@ def prepare_search_text(movies_df):
     """
     Create rich text for embedding by combining:
     - Title
-    - Genres (space-separated)
+    - Genres (join list with spaces: ["Drama", "Thriller"] → "Drama Thriller")
+    - Director name
+    - Top 5 cast members (join with spaces)
     - Overview/plot
-    
+
+    Example output:
+    "Inception Science Fiction Action Thriller Christopher Nolan Leonardo DiCaprio Joseph Gordon-Levitt Ellen Page Tom Hardy Marion Cotillard A thief who steals corporate secrets..."
+
+    This enables searches like:
+    - "Tarantino films" (director match)
+    - "movies with Tom Hanks" (cast match)
+    - "sci-fi with great acting" (genre + overview)
+
     Returns:
         DataFrame with search_text column
     """
@@ -141,8 +401,9 @@ def prepare_search_text(movies_df):
 ```
 
 **Expected Output:**
-- `data/processed/movies_clean.parquet` (~15MB)
-- Should have ~4,800 movies with complete data
+- `data/processed/movies_clean.parquet` (~25-40MB)
+- Should have ~10,000-15,000 movies with complete data
+- Includes classics (The Godfather, Casablanca, etc.) and recent films (2020s)
 
 ---
 
@@ -152,43 +413,84 @@ def prepare_search_text(movies_df):
 
 **Purpose:** Generate and save vector embeddings for all movies
 
+**Logging:**
+```python
+import logging
+logger = logging.getLogger(__name__)
+
+# Log key events:
+# - Model loading progress
+# - Embedding generation progress (with progress bar)
+# - Index build completion
+# - File save operations
+```
+
+**Configuration:**
+```python
+# Configurable model - easy to experiment with different options
+MODEL_NAME = "all-MiniLM-L6-v2"  # Default: fast and good quality
+
+# Alternative options:
+# MODEL_NAME = "all-mpnet-base-v2"  # Higher quality, 2x slower, 2x storage
+#   - Best for: Portfolio/demo quality
+#   - Tradeoff: 20 min setup vs 10 min, 60MB embeddings vs 30MB
+# MODEL_NAME = "multi-qa-MiniLM-L6-cos-v1"  # Optimized for queries
+#   - Best for: Query-document matching
+#   - Tradeoff: Movie blending might be slightly worse
+```
+
 **Key Functions:**
 
 ```python
-def load_embedding_model():
+def load_embedding_model(model_name=MODEL_NAME):
     """
     Load Sentence Transformer model
-    Model: 'all-MiniLM-L6-v2' (384 dimensions, fast)
-    
+
+    Args:
+        model_name: Model to load (default: from MODEL_NAME constant)
+
     Returns:
         SentenceTransformer model
+
+    Model will be cached in ~/.cache/torch/sentence_transformers/
+    First download may take a minute
     """
     pass
 
 def generate_embeddings(texts, model, batch_size=32):
     """
     Generate embeddings for list of texts
-    
+
     Args:
         texts: List of strings to embed
         model: SentenceTransformer model
         batch_size: Batch size for encoding
-    
+
     Returns:
-        numpy array of shape (n_texts, 384)
+        numpy array of shape (n_texts, embedding_dim)
+        Embeddings are L2-normalized for cosine similarity
     """
     pass
 
 def build_faiss_index(embeddings):
     """
     Build FAISS index for fast similarity search
-    Use IndexFlatL2 for exact search (dataset is small enough)
-    
+
+    Use IndexFlatIP (Inner Product) for cosine similarity:
+    - Requires L2-normalized embeddings (done in generate_embeddings)
+    - Inner product of normalized vectors = cosine similarity
+    - Better for sentence embeddings than Euclidean distance (L2)
+
+    Dataset is small enough (~10-15K movies) for exact search.
+
     Args:
-        embeddings: numpy array of shape (n_movies, 384)
-    
+        embeddings: numpy array of shape (n_movies, embedding_dim)
+        - Must be L2-normalized
+        - 384 dims for MiniLM models
+        - 768 dims for MPNet models
+
     Returns:
-        FAISS index
+        FAISS IndexFlatIP
     """
     pass
 
@@ -205,9 +507,9 @@ def save_index_and_embeddings(index, embeddings, movies_df, output_dir):
 ```
 
 **Expected Output:**
-- `data/index/faiss_index.bin` (~7MB)
-- `data/index/embeddings.npy` (~7MB)
-- `data/index/movie_metadata.parquet` (~15MB)
+- `data/index/faiss_index.bin` (~15-20MB)
+- `data/index/embeddings.npy` (~15-20MB)
+- `data/index/movie_metadata.parquet` (~25-40MB)
 
 ---
 
@@ -229,63 +531,53 @@ def load_search_system(index_dir):
     """
     pass
 
-def semantic_search(query, model, index, movies_df, k=10):
+def semantic_search(query, model, index, movies_df, k=100):
     """
     Basic semantic search
-    
+
     Args:
         query: User's search query (string)
-        k: Number of results to return
-    
+        k: Number of results to return (default 100 for pagination)
+
     Returns:
-        DataFrame with top k movies
+        DataFrame with top k movies, including 'similarity' column from FAISS
+        With IndexFlatIP, scores are already cosine similarities (range: -1 to 1)
+        Higher score = better match
     """
     pass
 
-def contrastive_search(like_movie_title, avoid_text, model, index, movies_df, k=10):
+def contrastive_search(like_movie_title, avoid_text, model, index, movies_df, k=100):
     """
     "Like X but not Y" search
-    
+
     Implementation:
     1. Get embedding for like_movie
     2. Get embedding for avoid_text
-    3. Create query vector: like_vec - 0.4 * avoid_vec
+    3. Create query vector: like_vec - 0.5 * avoid_vec
+       - Weight of 0.5 balances between keeping movie's vibe and avoiding unwanted aspects
+       - Too low (0.1): Barely affects results
+       - Too high (1.0): Might over-correct and lose the original movie's character
+       - 0.5 is a reasonable middle ground (can be tuned later if needed)
     4. Search with query vector
     5. Filter out the original movie
-    
+
     Returns:
-        DataFrame with top k movies
+        DataFrame with top k movies (default 100 for pagination)
     """
     pass
 
-def blend_movies(movie1_title, movie2_title, model, index, movies_df, k=10):
+def blend_movies(movie1_title, movie2_title, model, index, movies_df, k=100):
     """
     Find movies that combine two movies
-    
+
     Implementation:
     1. Get embeddings for both movies
     2. Average the embeddings
     3. Search with averaged vector
     4. Filter out both original movies
-    
-    Returns:
-        DataFrame with top k movies
-    """
-    pass
 
-def filter_and_search(query, model, index, movies_df, 
-                     genres=None, min_rating=None, year_range=None, k=10):
-    """
-    Semantic search with metadata filters
-    
-    Implementation:
-    1. Filter movies_df by metadata first
-    2. Get indices of filtered movies
-    3. Create filtered FAISS index
-    4. Search within filtered set
-    
     Returns:
-        DataFrame with top k filtered movies
+        DataFrame with top k movies (default 100 for pagination)
     """
     pass
 ```
@@ -308,8 +600,6 @@ Tabs:
 1. 🔍 Semantic Search
 2. 🎯 Like X But Not Y
 3. 🎬 Movie Blender
-4. 🎭 Mood Picker
-5. 🔎 Advanced Search
 ```
 
 **Key Components:**
@@ -319,29 +609,58 @@ def setup_page_config():
     """Configure Streamlit page settings"""
     pass
 
+@st.cache_resource
 def load_system():
-    """Load search system with caching"""
+    """
+    Load search system with caching
+
+    Error handling:
+    - Check if required index files exist:
+      - data/index/faiss_index.bin
+      - data/index/embeddings.npy
+      - data/index/movie_metadata.parquet
+    - If any missing, show error message and stop:
+      st.error("Index files not found. Please run: python setup.py")
+      st.stop()
+    - Load model, index, and metadata
+
+    Returns:
+        (model, index, movies_df)
+    """
     pass
 
-def display_movie_grid(movies, cols=5):
+def display_movie_grid(movies, cols=5, results_per_page=20, show_similarity=True):
     """
-    Display movies in a grid with posters
-    
+    Display movies in a grid with posters and pagination
+
     Each movie card shows:
     - Poster image
-    - Title
-    - Year and rating
-    - Click for details
+    - Title and year
+    - Similarity score (if show_similarity=True)
+      - Convert cosine similarity to percentage: (similarity + 1) / 2 * 100
+      - Cosine range: -1 to 1, convert to 0-100%
+      - Display as: "🎯 94% match"
+    - Rating (⭐ 8.8)
+    - Genres
+    - Director name
+    - Click for details/expanded view
+
+    Pagination:
+    - Fetch more results from search (k=100)
+    - Display results_per_page at a time (default 20)
+    - Use st.pagination or page number selector
+    - Shows "Page 1 of 5" with prev/next buttons
     """
     pass
 
 def tab_semantic_search():
     """
     Tab 1: Basic semantic search
-    
+
     Features:
     - Text input for query
-    - Example queries as buttons
+    - Search button disabled until query has text
+    - Example queries as buttons (pre-fill search box)
     - Result grid
     """
     pass
@@ -349,10 +668,14 @@ def tab_semantic_search():
 def tab_contrastive_search():
     """
     Tab 2: Like X But Not Y
-    
+
     Features:
-    - Dropdown to select movie (popular movies)
-    - Text input for "avoid" aspects
+    - Text input with autocomplete for movie selection
+      - Shows: movie title, year, and tiny poster thumbnail
+      - Searches as user types
+      - Helps disambiguate (e.g., "Inception (2010)" vs other movies)
+    - Text input for "avoid" aspects (required field)
+    - Search button disabled until both fields filled
     - Result grid
     """
     pass
@@ -360,38 +683,13 @@ def tab_contrastive_search():
 def tab_movie_blender():
     """
     Tab 3: Blend two movies
-    
+
     Features:
-    - Two dropdowns for movie selection
+    - Two text inputs with autocomplete for movie selection
+      - Shows: movie title, year, and tiny poster thumbnail
+    - Search button disabled until both movies selected
     - Result grid
     - Explanation of blend
-    """
-    pass
-
-def tab_mood_picker():
-    """
-    Tab 4: Pre-defined mood searches
-    
-    Moods:
-    - Need a Good Cry
-    - Brain Food
-    - Pure Escapism
-    - Cozy Evening
-    - Date Night
-    - Sunday Morning
-    """
-    pass
-
-def tab_advanced_search():
-    """
-    Tab 5: Search with filters
-    
-    Features:
-    - Text query
-    - Genre multi-select
-    - Rating slider
-    - Year range slider
-    - Result grid
     """
     pass
 ```
@@ -408,6 +706,18 @@ def inject_custom_css():
     - Responsive design
     """
     pass
+
+def display_footer():
+    """
+    Display footer with TMDb attribution
+
+    Required text:
+    "This product uses the TMDb API but is not endorsed or certified by TMDb.
+    Movie data and posters provided by TMDb."
+
+    Include link to: https://www.themoviedb.org
+    """
+    pass
 ```
 
 ---
@@ -416,38 +726,115 @@ def inject_custom_css():
 
 ### File: `setup.py`
 
-**Purpose:** One-time script to prepare everything
+**Purpose:** Idempotent setup script to prepare everything
+
+**Design Principle: Idempotency**
+- Can be run multiple times safely
+- Checks if files exist before regenerating
+- Allows force refresh with `--force` flag
+- Smart incremental updates where possible
 
 ```python
 """
-One-time setup script
-Run this once to prepare data and build index
+Idempotent setup script
+Can be run multiple times safely - only regenerates what's needed
 
 Steps:
-1. Check if data files exist
-2. Load and clean data
-3. Generate embeddings
-4. Build FAISS index
-5. Save everything
+1. Check if processed data exists (skip if exists, unless --force)
+2. Check if index exists (skip if exists, unless --force)
+3. Load and clean data from TMDb API
+4. Generate embeddings
+5. Build FAISS index
+6. Save everything
 
 Usage:
-    python setup.py
+    python setup.py              # Run setup, skip existing files
+    python setup.py --force      # Force regenerate everything
+    python setup.py --refresh    # Refresh data only (re-fetch from API)
+
+Flags:
+    --force: Regenerate all data and index files
+    --refresh: Re-fetch movie data from API, rebuild index
 """
 
+import argparse
+from pathlib import Path
+
+def check_existing_files():
+    """
+    Check what files already exist
+
+    Returns:
+        dict with keys: has_processed_data, has_index, has_embeddings
+    """
+    pass
+
 def main():
+    parser = argparse.ArgumentParser(description='Movie RAG Setup')
+    parser.add_argument('--force', action='store_true',
+                       help='Force regenerate all files')
+    parser.add_argument('--refresh', action='store_true',
+                       help='Refresh movie data from API')
+    args = parser.parse_args()
+
     print("🎬 Movie RAG Setup")
     print("=" * 50)
-    
-    # Check data files
-    # Load and clean
-    # Generate embeddings (show progress bar)
-    # Build index
-    # Save
-    
+
+    existing = check_existing_files()
+
+    # Determine what needs to be done
+    if args.force:
+        print("🔄 Force mode: Regenerating everything...")
+        fetch_data = True
+        generate_index = True
+    elif args.refresh:
+        print("🔄 Refresh mode: Re-fetching data and rebuilding index...")
+        fetch_data = True
+        generate_index = True
+    else:
+        fetch_data = not existing['has_processed_data']
+        generate_index = not existing['has_index']
+
+        if not fetch_data and not generate_index:
+            print("✅ All files exist. Nothing to do!")
+            print("   Use --force to regenerate or --refresh to update data")
+            return
+
+    # Execute setup steps
+    if fetch_data:
+        print("\n📥 Fetching movie data from TMDb API...")
+        try:
+            # Validate API key first
+            # Load and clean data
+            # Show progress bar
+            print(f"✅ Fetched {n_movies} movies")
+        except ValueError as e:
+            print(f"❌ Error: {e}")
+            print("   Check your TMDb API key in .env file")
+            return
+        except requests.RequestException as e:
+            print(f"❌ Network error: {e}")
+            print("   Check your internet connection and try again")
+            return
+    else:
+        print("\n⏭️  Skipping data fetch (already exists)")
+        # Load existing data
+
+    if generate_index:
+        print("\n🧮 Generating embeddings...")
+        # Generate embeddings (show progress bar)
+        print("\n🔨 Building FAISS index...")
+        # Build index
+        # Save everything
+        print("✅ Index built successfully")
+    else:
+        print("\n⏭️  Skipping index generation (already exists)")
+
+    print("\n" + "=" * 50)
     print("✅ Setup complete!")
-    print(f"Indexed {n_movies} movies")
-    print(f"Total size: ~{total_size_mb}MB")
-    print("\nRun: streamlit run src/app.py")
+    print(f"📊 Indexed {n_movies} movies")
+    print(f"💾 Total size: ~{total_size_mb}MB")
+    print(f"\n🚀 Run: streamlit run src/app.py")
 
 if __name__ == "__main__":
     main()
@@ -457,18 +844,30 @@ if __name__ == "__main__":
 
 ## Implementation Checklist
 
-### Phase 1: Data Preparation (30 minutes)
-- [ ] Download TMDb dataset
-- [ ] Implement `data_preparation.py`
-- [ ] Clean and filter movies
-- [ ] Add poster URLs
-- [ ] Save processed data
-- [ ] Verify: ~4,800 movies with plots and posters
+### Phase 0: Project Setup (10 minutes)
+- [ ] Create project structure (directories: data/raw, data/processed, data/index, src)
+- [ ] Create .gitignore file
+- [ ] Create requirements.txt
+- [ ] Create requirements-dev.txt (linting tools)
+- [ ] Create pre-commit config
+- [ ] Create GitHub Actions workflow
+- [ ] Create virtual environment and install dependencies
+- [ ] Initialize git repository
+- [ ] Install pre-commit hooks
 
-### Phase 2: Embeddings & Index (15 minutes)
+### Phase 1: Data Preparation (30 minutes)
+- [ ] Get TMDb API key and add to .env
+- [ ] Implement `data_preparation.py`
+- [ ] Implement API fetching functions
+- [ ] Implement idempotent `setup.py` with --force and --refresh flags
+- [ ] Run `python setup.py` to fetch movies from TMDb API (may take 15-20 min)
+- [ ] Verify: ~10,000-15,000 movies with plots and posters (classics to modern)
+- [ ] Test idempotency: Run `python setup.py` again (should skip existing files)
+
+### Phase 2: Embeddings & Index (25 minutes)
 - [ ] Implement `embeddings.py`
 - [ ] Load Sentence Transformer model
-- [ ] Generate embeddings for all movies (5-10 min runtime)
+- [ ] Generate embeddings for all movies (15-20 min runtime)
 - [ ] Build FAISS index
 - [ ] Save index and metadata
 - [ ] Verify: Files created in `data/index/`
@@ -478,7 +877,6 @@ if __name__ == "__main__":
 - [ ] Test semantic search
 - [ ] Test contrastive search
 - [ ] Test movie blending
-- [ ] Test filtered search
 - [ ] Verify: Queries return relevant results
 
 ### Phase 4: UI (1 hour)
@@ -486,9 +884,7 @@ if __name__ == "__main__":
 - [ ] Create Tab 1: Semantic Search
 - [ ] Create Tab 2: Like X But Not Y
 - [ ] Create Tab 3: Movie Blender
-- [ ] Create Tab 4: Mood Picker
-- [ ] Create Tab 5: Advanced Search
-- [ ] Add movie grid display
+- [ ] Add movie grid display with similarity scores
 - [ ] Add custom CSS
 - [ ] Test all features
 - [ ] Verify: UI is responsive and looks good
@@ -497,9 +893,17 @@ if __name__ == "__main__":
 - [ ] Add example queries
 - [ ] Add loading spinners
 - [ ] Add error handling
+- [ ] Add TMDb attribution footer
 - [ ] Add README
 - [ ] Test edge cases
-- [ ] Deploy to Streamlit Cloud (optional)
+
+### Phase 6: Deployment (10 minutes)
+- [ ] Commit data/index/ files to git
+- [ ] Push to GitHub
+- [ ] Deploy to Streamlit Cloud
+- [ ] (Optional) Add TMDb API key as Streamlit secret for data refreshes
+- [ ] Test deployed app
+- [ ] Verify all features work in production
 
 ---
 
@@ -515,8 +919,8 @@ if __name__ == "__main__":
 **Contrastive Search:**
 - Like "Inception" but not "confusing"
 - Like "The Godfather" but not "violent"
-- Like "Eternal Sunshine" but not "depressing"
-- Like "Parasite" but not "subtitles"
+- Like "Eternal Sunshine" but not "sad"
+- Like "The Matrix" but not "action-heavy"
 
 **Movie Blending:**
 - "The Matrix" + "Her"
@@ -528,9 +932,10 @@ if __name__ == "__main__":
 ## Performance Expectations
 
 **Setup:**
+- TMDb API data fetch: ~15-20 minutes
 - Data preparation: ~5 minutes
-- Embedding generation: ~10 minutes (CPU)
-- Total setup time: ~15 minutes
+- Embedding generation: ~20-25 minutes (CPU)
+- Total setup time: ~40-50 minutes
 
 **Runtime:**
 - Search query: <500ms
@@ -538,14 +943,14 @@ if __name__ == "__main__":
 - Memory usage: ~500MB
 
 **Storage:**
-- Raw data: ~50MB
-- Processed data: ~15MB
-- Index + embeddings: ~30MB
-- Total: ~100MB
+- Raw data: ~10-15MB (cached API responses in data/raw/)
+- Processed data: ~25-40MB
+- Index + embeddings: ~60-80MB
+- Total: ~95-135MB
 
 ---
 
-## Deployment (Optional)
+## Deployment
 
 ### Streamlit Community Cloud
 
@@ -555,28 +960,28 @@ if __name__ == "__main__":
 4. Deploy
 
 **Requirements:**
-- Add all data files to repo (or use git-lfs for large files)
-- Or re-run setup on deployment
+- Commit data/index/ files to git repository
+  - Size: ~60-80MB (under GitHub's 100MB file limit)
+  - Necessary for app to work on deployment
+- Add TMDb API key as Streamlit secret (optional, only needed for data refreshes)
 - Free tier: 1GB RAM (sufficient for this project)
+
+**Add API key as secret (optional):**
+1. Go to Streamlit Cloud app settings
+2. Add secret: `TMDB_API_KEY = "your_key_here"`
+3. Only needed if you want to refresh data using `setup.py --refresh`
 
 ---
 
-## Extension Ideas
+## Future Enhancements
 
-**V2 Features:**
-- User ratings integration
-- Watchlist functionality
-- Similar movies graph visualization
-- Director/actor filtering
-- Streaming availability (JustWatch API)
-- User taste profiles (save preferences)
-- Social sharing (share searches)
+See [v2-features.md](v2-features.md) for a complete list of potential features and improvements to implement after the MVP is complete.
 
-**Advanced RAG:**
-- Hybrid search (semantic + keyword)
-- Re-ranking with cross-encoder
-- Query expansion
-- Relevance feedback
+**Highlights:**
+- Accessibility improvements (high priority)
+- Testing & quality (unit tests, integration tests, code coverage)
+- Mood Picker tab with pre-defined searches
+- Advanced RAG techniques (hybrid search, re-ranking, query expansion)
 
 ---
 
@@ -618,8 +1023,7 @@ if __name__ == "__main__":
 - Streamlit: https://docs.streamlit.io/
 - TMDb API: https://developers.themoviedb.org/
 
-**Datasets:**
-- TMDb Dataset: https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata
+**Images:**
 - TMDb Images: https://image.tmdb.org/t/p/w500/[poster_path]
 
 **Similar Projects:**
@@ -631,10 +1035,11 @@ if __name__ == "__main__":
 ## Success Metrics
 
 **Project is complete when:**
-- [ ] Can search 4,800+ movies semantically
+- [ ] Can search 10,000+ movies semantically (classics to modern)
+- [ ] Database includes well-known films from all eras (The Godfather, Inception, etc.)
 - [ ] Search returns relevant results in <1 second
-- [ ] UI displays movie posters in grid
-- [ ] All 5 tabs work correctly
+- [ ] UI displays movie posters in grid with similarity scores
+- [ ] All 3 tabs work correctly (Semantic Search, Contrastive Search, Movie Blender)
 - [ ] Example queries return expected results
 - [ ] Code is documented and clean
 - [ ] Can demo to someone in 5 minutes
@@ -655,15 +1060,25 @@ if __name__ == "__main__":
 - Verify search relevance manually with known movies
 
 **Code Style:**
+- Use Black for formatting (88 char line length)
+- Use isort for import sorting (Black-compatible profile)
+- Use Flake8 for linting (ignoring E203, W503 for Black compatibility)
 - Use type hints
 - Add docstrings to all functions
 - Handle errors gracefully
 - Add progress bars for long operations
 - Use pathlib for file paths
 
+**Development Workflow:**
+- Pre-commit hooks run automatically on commit
+- Run `black src/ setup.py` to format code
+- Run `isort src/ setup.py --profile black` to sort imports
+- Run `flake8 src/ setup.py` to check linting
+- GitHub Actions runs on all PRs and pushes to main
+
 **Git Commits:**
 - Commit after each major component
 - Clear commit messages
-- Keep data files in .gitignore (too large)
-
-Good luck! 🚀
+- Keep processed data in .gitignore (regenerate with setup.py)
+- Commit index files to git for deployment (~60-80MB, under GitHub limit)
+- Pre-commit hooks ensure code quality before commit
