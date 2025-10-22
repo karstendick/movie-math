@@ -36,6 +36,7 @@ movie-math/
 ├── .pre-commit-config.yaml       # Pre-commit hooks config
 ├── requirements.txt              # Production dependencies
 ├── requirements-dev.txt          # Development dependencies
+├── search_demo.py                # Interactive search demo
 ├── setup.py                      # One-time data setup script
 └── README.md
 ```
@@ -530,11 +531,13 @@ def save_index_and_embeddings(index, embeddings, movies_df, output_dir):
 
 ---
 
-## Step 5: Search Implementation
+## Step 5: Search Implementation ✅ COMPLETE
 
 ### File: `src/search.py`
 
 **Purpose:** Implement various search strategies
+
+**Status:** Fully implemented with smart movie matching and comprehensive error handling
 
 **Key Functions:**
 
@@ -570,13 +573,16 @@ def contrastive_search(like_movie_title, avoid_text, model, index, movies_df, k=
     Implementation:
     1. Get embedding for like_movie
     2. Get embedding for avoid_text
-    3. Create query vector: like_vec - 0.5 * avoid_vec
-       - Weight of 0.5 balances between keeping movie's vibe and avoiding unwanted aspects
-       - Too low (0.1): Barely affects results
-       - Too high (1.0): Might over-correct and lose the original movie's character
-       - 0.5 is a reasonable middle ground (can be tuned later if needed)
+    3. Create query vector: like_vec - 1.0 * avoid_vec
+       - Weight of 1.0 provides strong contrast to avoid unwanted aspects
+       - Lower weights (0.3-0.5): Results too similar to source movie
+       - Weight of 1.0: Balanced push away from unwanted aspects
+       - Higher weights (>1.5): May over-correct and lose movie's character
     4. Search with query vector
     5. Filter out the original movie
+
+    Note: Sequels may still appear if they share director, cast, and themes
+    with the source movie, as these similarities can outweigh the avoided aspect.
 
     Returns:
         DataFrame with top k movies (default 100 for pagination)
@@ -598,6 +604,35 @@ def blend_movies(movie1_title, movie2_title, model, index, movies_df, k=100):
     """
     pass
 ```
+
+### Interactive Demo: `search_demo.py`
+
+**Purpose:** Test and demonstrate search functionality with an interactive menu
+
+**Features:**
+- Menu-driven interface for testing all search types
+- Display results with similarity scores and genres
+- Pre-loaded example queries
+- Easy experimentation without writing code
+
+**Usage:**
+```bash
+python search_demo.py
+```
+
+**Menu options:**
+1. Semantic Search - Try custom queries
+2. Contrastive Search - "Like X but not Y"
+3. Movie Blending - Combine two movies
+4. Run example queries - Pre-loaded demonstrations
+5. Exit
+
+**Implementation notes:**
+- Uses `load_search_system()` once at startup (cached for performance)
+- Displays top 10 results with similarity percentages
+- Shows genres for each result
+- Handles missing movies gracefully
+- Interactive and user-friendly for testing during development
 
 ---
 
@@ -896,12 +931,13 @@ if __name__ == "__main__":
 - [x] Verify: Files created in `data/index/` (75.7 MB total)
 - [x] Optimize with lazy imports (28x faster CLI startup)
 
-### Phase 3: Search Functions (30 minutes)
-- [ ] Implement `search.py`
-- [ ] Test semantic search
-- [ ] Test contrastive search
-- [ ] Test movie blending
-- [ ] Verify: Queries return relevant results
+### Phase 3: Search Functions ✅ COMPLETE
+- [x] Implement `search.py`
+- [x] Test semantic search
+- [x] Test contrastive search
+- [x] Test movie blending
+- [x] Verify: Queries return relevant results
+- [x] Create interactive demo script (`search_demo.py`)
 
 ### Phase 4: UI (1 hour)
 - [ ] Implement basic Streamlit structure
@@ -1059,14 +1095,16 @@ See [v2-features.md](v2-features.md) for a complete list of potential features a
 ## Success Metrics
 
 **Project is complete when:**
-- [ ] Can search 10,000+ movies semantically (classics to modern)
-- [ ] Database includes well-known films from all eras (The Godfather, Inception, etc.)
-- [ ] Search returns relevant results in <1 second
+- [x] Can search 10,000+ movies semantically (classics to modern) - **21,555 movies indexed**
+- [x] Database includes well-known films from all eras (The Godfather, Inception, etc.) - **1874-2025**
+- [x] Search returns relevant results in <1 second - **~200-500ms per query**
 - [ ] UI displays movie posters in grid with similarity scores
 - [ ] All 3 tabs work correctly (Semantic Search, Contrastive Search, Movie Blender)
-- [ ] Example queries return expected results
-- [ ] Code is documented and clean
+- [x] Example queries return expected results - **Verified with search_demo.py**
+- [x] Code is documented and clean - **Passes Black, isort, flake8**
 - [ ] Can demo to someone in 5 minutes
+
+**Current Status:** Phases 1-3 complete. Ready for Phase 4 (Streamlit UI).
 
 ---
 

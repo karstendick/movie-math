@@ -114,11 +114,30 @@ If data already exists, this will:
 
 The script is idempotent and will skip phases that are already complete.
 
-### 8. Next Steps
+### 8. Try the Search Demo
+
+Test the search functions with an interactive demo:
+
+```bash
+python search_demo.py
+```
+
+This interactive menu lets you:
+- Try semantic searches with your own queries
+- Test "Like X but not Y" contrastive search
+- Blend two movies together
+- Run example queries
+
+Example searches to try:
+- Semantic: "hopepunk", "atmospheric horror", "heist films with clever twists"
+- Contrastive: Like "Lord of the Rings" but not "fantasy"
+- Blending: "Blade Runner" + "Drive"
+
+### 9. Next Steps
 
 The following components are not yet implemented:
-- Search functionality (Phase 3)
-- Streamlit app (Phase 4)
+- Streamlit web app (Phase 4)
+- UI polish and examples (Phase 5)
 
 To continue development, see the implementation phases in [spec.md](spec.md).
 
@@ -166,12 +185,13 @@ movie-math/
 ├── src/
 │   ├── data_preparation.py       # Load and clean movie data
 │   ├── embeddings.py             # Generate embeddings
-│   ├── search.py                 # Search functionality
-│   └── app.py                    # Streamlit UI
+│   ├── search.py                 # Search functionality ✅
+│   └── app.py                    # Streamlit UI (coming soon)
 ├── .gitignore
 ├── .pre-commit-config.yaml       # Pre-commit hooks config
 ├── requirements.txt              # Production dependencies
 ├── requirements-dev.txt          # Development dependencies
+├── search_demo.py                # Interactive search demo ✅
 ├── setup.py                      # One-time data setup script
 └── README.md
 ```
