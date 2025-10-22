@@ -87,8 +87,9 @@ This will:
 The script is idempotent - run it multiple times safely:
 
 ```bash
-python setup.py              # Skip if data exists, use cache if needed
-python setup.py --force      # Ignore cache, re-fetch from API
+python setup.py                    # Skip if data exists, use cache if needed
+python setup.py --redownload-data  # Re-fetch data from API and regenerate everything
+python setup.py --regenerate-index # Keep data, regenerate embeddings/index only
 ```
 
 **How caching works:**
@@ -97,10 +98,25 @@ python setup.py --force      # Ignore cache, re-fetch from API
 - If you delete processed data but keep raw data, regeneration is instant
 - Use `--force` to ignore all cache and fetch fresh data from TMDb API
 
-### 7. Next Steps
+### 7. Generate Embeddings and Build Index
+
+After processing the data, generate embeddings and build the FAISS index:
+
+```bash
+python setup.py
+```
+
+If data already exists, this will:
+- Load the embedding model (all-MiniLM-L6-v2, 384 dimensions)
+- Generate embeddings for all 21,555 movies (~42 seconds on Apple Silicon)
+- Build FAISS index for fast similarity search
+- Save to `data/index/` (~76 MB total)
+
+The script is idempotent and will skip phases that are already complete.
+
+### 8. Next Steps
 
 The following components are not yet implemented:
-- Embeddings generation (Phase 2)
 - Search functionality (Phase 3)
 - Streamlit app (Phase 4)
 

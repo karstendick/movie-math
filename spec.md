@@ -748,7 +748,8 @@ def display_footer():
 **Design Principle: Idempotency**
 - Can be run multiple times safely
 - Checks if files exist before regenerating
-- Allows force refresh with `--force` flag
+- Allows re-downloading data with `--redownload-data` flag
+- Allows regenerating embeddings/index only with `--regenerate-index` flag
 - Smart incremental updates where possible
 
 ```python
@@ -757,21 +758,21 @@ Idempotent setup script
 Can be run multiple times safely - only regenerates what's needed
 
 Steps:
-1. Check if processed data exists (skip if exists, unless --force)
-2. Check if index exists (skip if exists, unless --force)
+1. Check if processed data exists (skip if exists, unless --redownload-data)
+2. Check if index exists (skip if exists, unless --regenerate-index)
 3. Load and clean data from TMDb API
 4. Generate embeddings
 5. Build FAISS index
 6. Save everything
 
 Usage:
-    python setup.py              # Run setup, skip existing files
-    python setup.py --force      # Force regenerate everything
-    python setup.py --refresh    # Refresh data only (re-fetch from API)
+    python setup.py                    # Run setup, skip existing files
+    python setup.py --redownload-data  # Re-fetch data and regenerate everything
+    python setup.py --regenerate-index # Keep data, regenerate embeddings/index only
 
 Flags:
-    --force: Regenerate all data and index files
-    --refresh: Re-fetch movie data from API, rebuild index
+    --redownload-data: Re-fetch movie data from TMDb API and regenerate everything
+    --regenerate-index: Regenerate embeddings and index only (keep existing data)
 """
 
 import argparse
@@ -788,10 +789,10 @@ def check_existing_files():
 
 def main():
     parser = argparse.ArgumentParser(description='Movie RAG Setup')
-    parser.add_argument('--force', action='store_true',
-                       help='Force regenerate all files')
-    parser.add_argument('--refresh', action='store_true',
-                       help='Refresh movie data from API')
+    parser.add_argument('--redownload-data', action='store_true',
+                       help='Re-fetch data from TMDb API and regenerate everything')
+    parser.add_argument('--regenerate-index', action='store_true',
+                       help='Regenerate embeddings and index only (keep existing data)')
     args = parser.parse_args()
 
     print("🎬 Movie RAG Setup")
@@ -800,13 +801,13 @@ def main():
     existing = check_existing_files()
 
     # Determine what needs to be done
-    if args.force:
-        print("🔄 Force mode: Regenerating everything...")
+    if args.redownload_data:
+        print("🔄 Re-downloading data from TMDb API and regenerating everything...")
         fetch_data = True
         generate_index = True
-    elif args.refresh:
-        print("🔄 Refresh mode: Re-fetching data and rebuilding index...")
-        fetch_data = True
+    elif args.regenerate_index:
+        print("🔄 Regenerate index mode: Keeping data, regenerating index...")
+        fetch_data = False
         generate_index = True
     else:
         fetch_data = not existing['has_processed_data']
@@ -814,7 +815,8 @@ def main():
 
         if not fetch_data and not generate_index:
             print("✅ All files exist. Nothing to do!")
-            print("   Use --force to regenerate or --refresh to update data")
+            print("   Use --redownload-data to re-fetch from TMDb API")
+            print("   Use --regenerate-index to regenerate embeddings/index only")
             return
 
     # Execute setup steps
@@ -876,22 +878,23 @@ if __name__ == "__main__":
 - [x] Get TMDb API key and add to .env
 - [x] Implement `data_preparation.py` with year-based fetching
 - [x] Implement API fetching functions (bypasses 500-page limit)
-- [x] Implement idempotent `setup.py` with --force flag
+- [x] Implement idempotent `setup.py` with `--redownload-data` and `--regenerate-index` flags
 - [x] Implement year-based raw data caching (data/raw/movies/{year}.json)
 - [x] Implement year-based credits caching (data/raw/credits/{year}.json)
-- [x] Run `python setup.py --force` to fetch movies from TMDb API (~70 min runtime)
+- [x] Run `python setup.py` to fetch movies from TMDb API (~70 min runtime)
 - [x] Verify: 21,555 movies with plots and posters (1874-2025)
 - [x] Test idempotency: Run `python setup.py` again (should skip existing files)
 - [x] Unit and integration tests passing
 - [x] Increased MIN_VOTE_COUNT to 100 for better quality
 
-### Phase 2: Embeddings & Index (25 minutes)
-- [ ] Implement `embeddings.py`
-- [ ] Load Sentence Transformer model
-- [ ] Generate embeddings for all movies (15-20 min runtime)
-- [ ] Build FAISS index
-- [ ] Save index and metadata
-- [ ] Verify: Files created in `data/index/`
+### Phase 2: Embeddings & Index ✅ COMPLETE
+- [x] Implement `embeddings.py`
+- [x] Load Sentence Transformer model
+- [x] Generate embeddings for all movies (~42 seconds on Apple Silicon)
+- [x] Build FAISS index
+- [x] Save index and metadata
+- [x] Verify: Files created in `data/index/` (75.7 MB total)
+- [x] Optimize with lazy imports (28x faster CLI startup)
 
 ### Phase 3: Search Functions (30 minutes)
 - [ ] Implement `search.py`
