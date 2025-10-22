@@ -22,8 +22,10 @@ movie-math/
 │   └── workflows/
 │       └── ci.yml                # GitHub Actions CI/CD
 ├── data/
-│   ├── raw/                      # Raw API responses (cached)
-│   ├── processed/                # Cleaned data
+│   ├── raw/
+│   │   ├── movies/               # Year-based movie cache (1874.json - 2025.json)
+│   │   └── credits/              # Year-based credits cache (1874.json - 2025.json)
+│   ├── processed/                # Cleaned data (movies_clean.parquet)
 │   └── index/                    # FAISS index and embeddings
 ├── src/
 │   ├── data_preparation.py       # Load and clean movie data
@@ -226,8 +228,11 @@ echo "TMDB_API_KEY=your_api_key_here" > .env
 - Free tier: 50 requests/second
 - Unlimited daily requests
 - Use `/discover/movie` endpoint to fetch movies
-- Fetch all movies with sufficient votes (default: 50+ votes, configurable in code)
-- Expected: ~10,000-15,000 movies with complete data (includes classics from 1920s-2020s)
+- Fetch year-by-year (1874-2026) to bypass 500-page limit per query
+- Minimum votes: 100 (configurable via MIN_VOTE_COUNT constant)
+- Sort by: popularity.desc (single sort method per year)
+- **Actual output: 21,555 movies** with complete data (1874-2025)
+- **Runtime: ~70 minutes** (4 min movies, 65 min credits)
 
 ---
 
@@ -257,52 +262,54 @@ logger = logging.getLogger(__name__)
 **Configuration Constants:**
 ```python
 # Configurable thresholds - adjust these to tune dataset quality
-MIN_VOTE_COUNT = 50  # Minimum votes to include a movie
+MIN_VOTE_COUNT = 100  # Minimum votes to include a movie
 MIN_VOTE_AVERAGE = 0  # Minimum rating (0 = no filter)
 # Lower MIN_VOTE_COUNT includes more indie/art films
 # Higher MIN_VOTE_COUNT focuses on popular/well-known movies
+# 100 votes = good balance: keeps 90% of movies, filters truly obscure films
 ```
 
 **Key Functions:**
 
 ```python
-def fetch_movies_from_api(api_key, min_votes=50, pages_per_sort=50):
+def fetch_movies_from_api(api_key, min_votes=MIN_VOTE_COUNT, use_cache=True):
     """
-    Fetch movies from TMDb API
+    Fetch movies from TMDb API using year-based pagination.
 
-    Uses /discover/movie endpoint with pagination
-    Strategy: Fetch movies sorted by different criteria to get comprehensive coverage
-    - Sort by popularity (most popular movies)
-    - Sort by vote_count (most reviewed movies)
-    - Sort by vote_average (highest rated movies with min votes filter)
+    Uses /discover/movie endpoint with year-based filtering.
+    Strategy: Fetch movies year-by-year sorted by popularity
+    - Fetches from 1874 (first motion pictures) to current_year + 1
+    - Uses primary_release_year filter to bypass 500-page limit per query
+    - Sorts by popularity.desc to get most relevant movies first
+    - Each year can have up to 500 pages (unlikely for most years)
 
-    This approach ensures we get both classics and recent films that people
-    actually know about, without arbitrary year cutoffs.
+    This approach ensures comprehensive coverage across all film history
+    without hitting TMDb's pagination limits.
 
     Caching:
-    - Save raw API responses to data/raw/ for debugging/re-processing
+    - Save raw API responses to data/raw/movies/{year}.json
     - Cache allows re-running data preparation without re-fetching from API
-    - Skip API calls if raw data already exists (unless --refresh flag used)
+    - Skip years that already have cache files (unless use_cache=False)
+    - Enables resumability: can stop/restart without losing progress
 
     Error handling:
     - Retry failed requests up to 3 times with exponential backoff
     - Handle rate limiting (429 status) by waiting and retrying
     - Validate API key before starting (test with simple request)
-    - Clear error messages for network failures
-    - Log progress so partial data isn't lost
+    - Continue with other years if one year fails
+    - Log progress every 10 years
 
     Args:
         api_key: TMDb API key from .env
-        min_votes: Minimum vote count filter (default 50, configurable)
-        pages_per_sort: Pages to fetch per sort method (default 50)
+        min_votes: Minimum vote count filter (default MIN_VOTE_COUNT=100)
+        use_cache: If True, load from cache if available (default True)
 
     Returns:
-        DataFrame with columns: id, title, overview, genres, year,
+        DataFrame with columns: id, title, overview, genres, release_date,
         rating, votes, poster_path, popularity
 
     Raises:
         ValueError: If API key is invalid
-        requests.RequestException: If network request fails after retries
     """
     pass
 
@@ -331,7 +338,7 @@ def fetch_movie_credits(api_key, movie_id):
     """
     pass
 
-def load_tmdb_data_from_api(api_key):
+def load_tmdb_data_from_api(api_key, use_cache=True):
     """
     Complete data loading from TMDb API
 
@@ -339,9 +346,19 @@ def load_tmdb_data_from_api(api_key):
     2. Fetch credits for each movie (with progress bar)
     3. Combine into single DataFrame
 
+    Caching:
+    - Saves credits to data/raw/credits/{year}.json for re-use
+    - Groups movies by year for organized caching
+    - Skip years with cached credits (unless use_cache=False)
+    - Enables resumability: can stop/restart credits fetching
+
+    Args:
+        api_key: TMDb API key
+        use_cache: If True, load from cache if available (default True)
+
     Returns:
-        DataFrame with columns: id, title, overview, genres, year,
-        rating, votes, poster_path, director, cast
+        DataFrame with columns: id, title, overview, genres, release_date,
+        rating, votes, poster_path, director, cast, year
     """
     pass
 
@@ -855,14 +872,18 @@ if __name__ == "__main__":
 - [x] Initialize git repository
 - [x] Install pre-commit hooks
 
-### Phase 1: Data Preparation (30 minutes)
-- [ ] Get TMDb API key and add to .env
-- [ ] Implement `data_preparation.py`
-- [ ] Implement API fetching functions
-- [ ] Implement idempotent `setup.py` with --force and --refresh flags
-- [ ] Run `python setup.py` to fetch movies from TMDb API (may take 15-20 min)
-- [ ] Verify: ~10,000-15,000 movies with plots and posters (classics to modern)
-- [ ] Test idempotency: Run `python setup.py` again (should skip existing files)
+### Phase 1: Data Preparation ✅ COMPLETE
+- [x] Get TMDb API key and add to .env
+- [x] Implement `data_preparation.py` with year-based fetching
+- [x] Implement API fetching functions (bypasses 500-page limit)
+- [x] Implement idempotent `setup.py` with --force flag
+- [x] Implement year-based raw data caching (data/raw/movies/{year}.json)
+- [x] Implement year-based credits caching (data/raw/credits/{year}.json)
+- [x] Run `python setup.py --force` to fetch movies from TMDb API (~70 min runtime)
+- [x] Verify: 21,555 movies with plots and posters (1874-2025)
+- [x] Test idempotency: Run `python setup.py` again (should skip existing files)
+- [x] Unit and integration tests passing
+- [x] Increased MIN_VOTE_COUNT to 100 for better quality
 
 ### Phase 2: Embeddings & Index (25 minutes)
 - [ ] Implement `embeddings.py`

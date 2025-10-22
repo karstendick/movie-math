@@ -66,29 +66,73 @@ cp .env.example .env
 # TMDB_API_KEY=your_api_key_here
 ```
 
-### 6. Run Setup Script
+### 6. Fetch and Process Movie Data
+
+Run the setup script to fetch movies from TMDb:
 
 ```bash
-# This will fetch movie data from TMDb and build the search index
-# First run takes ~40-50 minutes (fetching data + generating embeddings)
 python setup.py
 ```
 
-The setup script is idempotent - you can run it multiple times safely:
+This will:
+- Fetch movies year-by-year from TMDb API (1874-2026)
+- Fetch director and cast credits for each movie
+- Save raw API responses to `data/raw/movies/{year}.json` and `data/raw/credits/{year}.json`
+- Clean and process the data (minimum 100 votes required)
+- Save to `data/processed/movies_clean.parquet`
+- **Actual output:** 21,555 movies (with vote_count >= 100)
+- **First run:** ~70 minutes (4 min for movies, 65 min for credits)
+- **Subsequent runs:** Instant (uses year-based cache, resumes where left off)
+
+The script is idempotent - run it multiple times safely:
 
 ```bash
-python setup.py              # Skip existing files
-python setup.py --force      # Regenerate everything
-python setup.py --refresh    # Re-fetch data from API
+python setup.py              # Skip if data exists, use cache if needed
+python setup.py --force      # Ignore cache, re-fetch from API
 ```
 
-### 7. Launch the App
+**How caching works:**
+- Raw API data is saved year-by-year: `data/raw/movies/2024.json`, `data/raw/credits/2024.json`, etc.
+- Script automatically resumes: skips years that already have cache files
+- If you delete processed data but keep raw data, regeneration is instant
+- Use `--force` to ignore all cache and fetch fresh data from TMDb API
+
+### 7. Next Steps
+
+The following components are not yet implemented:
+- Embeddings generation (Phase 2)
+- Search functionality (Phase 3)
+- Streamlit app (Phase 4)
+
+To continue development, see the implementation phases in [spec.md](spec.md).
+
+---
+
+## Testing
+
+### Run Unit Tests
+
+Unit tests run without hitting external APIs and are fast:
 
 ```bash
-streamlit run src/app.py
+pytest tests/test_data_preparation_unit.py -v
 ```
 
-The app will open in your browser at `http://localhost:8501`
+### Run Integration Tests
+
+Integration tests hit the TMDb API and should be run manually:
+
+```bash
+pytest tests/test_data_preparation_integration.py -v
+```
+
+### Run All Tests with Coverage
+
+```bash
+pytest tests/ -v --cov=src --cov-report=term-missing
+```
+
+**Note:** Unit tests run automatically in pre-commit hooks and GitHub Actions. Integration tests must be run manually.
 
 ---
 
