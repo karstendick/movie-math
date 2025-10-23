@@ -45,7 +45,7 @@ def load_search_system(
         FileNotFoundError: If required files are missing
     """
     # Import the load function from embeddings module
-    from src.embeddings import load_search_system as load_system_impl
+    from embeddings import load_search_system as load_system_impl
 
     return load_system_impl(index_dir)
 

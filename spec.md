@@ -636,11 +636,26 @@ python search_demo.py
 
 ---
 
-## Step 6: Streamlit UI
+## Step 6: Streamlit UI ✅ COMPLETE
 
 ### File: `src/app.py`
 
 **Purpose:** Web interface for movie search
+
+**Status:** Fully implemented with all three tabs, example queries, error handling, and responsive UI
+
+**How to Run:**
+```bash
+streamlit run src/app.py
+```
+The app will open at http://localhost:8501
+
+**Implementation Notes:**
+- Search button aligned horizontally with text input using columns and `label_visibility="collapsed"`
+- Example queries use session state binding with `key` parameter to avoid form conflicts
+- Results persist in session state (`semantic_results`) across reruns
+- Example queries execute immediately and populate the search box for visibility
+- All tabs use forms to enable Enter key submission
 
 **UI Structure:**
 
@@ -939,23 +954,26 @@ if __name__ == "__main__":
 - [x] Verify: Queries return relevant results
 - [x] Create interactive demo script (`search_demo.py`)
 
-### Phase 4: UI (1 hour)
-- [ ] Implement basic Streamlit structure
-- [ ] Create Tab 1: Semantic Search
-- [ ] Create Tab 2: Like X But Not Y
-- [ ] Create Tab 3: Movie Blender
-- [ ] Add movie grid display with similarity scores
-- [ ] Add custom CSS
-- [ ] Test all features
-- [ ] Verify: UI is responsive and looks good
+### Phase 4: UI ✅ COMPLETE
+- [x] Implement basic Streamlit structure
+- [x] Create Tab 1: Semantic Search
+- [x] Create Tab 2: Like X But Not Y
+- [x] Create Tab 3: Movie Blender
+- [x] Add movie grid display with similarity scores
+- [x] Add custom CSS
+- [x] Test all features
+- [x] Verify: UI is responsive and looks good
+- [x] Fix alignment issues (Search button aligned with text input)
+- [x] Example queries execute immediately when clicked
+- [x] Example queries populate the search box for visibility
 
-### Phase 5: Polish (30 minutes)
-- [ ] Add example queries
-- [ ] Add loading spinners
-- [ ] Add error handling
-- [ ] Add TMDb attribution footer
-- [ ] Add README
-- [ ] Test edge cases
+### Phase 5: Polish ✅ COMPLETE
+- [x] Add example queries (4 example queries on Semantic Search tab)
+- [x] Add loading spinners (search spinners on all tabs)
+- [x] Add error handling (missing files, movie not found, etc.)
+- [x] Add TMDb attribution footer
+- [x] Update README with web app instructions
+- [x] Test edge cases (fixed text input state management bugs)
 
 ### Phase 6: Deployment (10 minutes)
 - [ ] Commit data/index/ files to git
@@ -1098,13 +1116,13 @@ See [v2-features.md](v2-features.md) for a complete list of potential features a
 - [x] Can search 10,000+ movies semantically (classics to modern) - **21,555 movies indexed**
 - [x] Database includes well-known films from all eras (The Godfather, Inception, etc.) - **1874-2025**
 - [x] Search returns relevant results in <1 second - **~200-500ms per query**
-- [ ] UI displays movie posters in grid with similarity scores
-- [ ] All 3 tabs work correctly (Semantic Search, Contrastive Search, Movie Blender)
-- [x] Example queries return expected results - **Verified with search_demo.py**
+- [x] UI displays movie posters in grid with similarity scores - **Complete with responsive grid layout**
+- [x] All 3 tabs work correctly (Semantic Search, Contrastive Search, Movie Blender) - **All implemented and tested**
+- [x] Example queries return expected results - **Verified with search_demo.py and web UI**
 - [x] Code is documented and clean - **Passes Black, isort, flake8**
-- [ ] Can demo to someone in 5 minutes
+- [x] Can demo to someone in 5 minutes - **Web UI ready at localhost:8501**
 
-**Current Status:** Phases 1-3 complete. Ready for Phase 4 (Streamlit UI).
+**Current Status:** Phases 1-5 complete. Ready for Phase 6 (Deployment).
 
 ---
 

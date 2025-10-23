@@ -133,13 +133,29 @@ Example searches to try:
 - Contrastive: Like "Lord of the Rings" but not "fantasy"
 - Blending: "Blade Runner" + "Drive"
 
-### 9. Next Steps
+### 9. Run the Web App
 
-The following components are not yet implemented:
-- Streamlit web app (Phase 4)
-- UI polish and examples (Phase 5)
+Start the Streamlit web interface:
 
-To continue development, see the implementation phases in [spec.md](spec.md).
+```bash
+streamlit run src/app.py
+```
+
+The app will open in your browser at [http://localhost:8501](http://localhost:8501)
+
+**Features:**
+- **Semantic Search tab**: Search by themes, moods, and concepts with example queries
+- **Like X But Not Y tab**: Find similar movies while avoiding certain aspects
+- **Movie Blender tab**: Combine two movies to discover films that blend both styles
+
+**Optional flags:**
+```bash
+# Run on a different port
+streamlit run src/app.py --server.port 8502
+
+# Run in headless mode (no browser auto-open)
+streamlit run src/app.py --server.headless true
+```
 
 ---
 
@@ -186,7 +202,7 @@ movie-math/
 │   ├── data_preparation.py       # Load and clean movie data
 │   ├── embeddings.py             # Generate embeddings
 │   ├── search.py                 # Search functionality ✅
-│   └── app.py                    # Streamlit UI (coming soon)
+│   └── app.py                    # Streamlit UI ✅
 ├── .gitignore
 ├── .pre-commit-config.yaml       # Pre-commit hooks config
 ├── requirements.txt              # Production dependencies
