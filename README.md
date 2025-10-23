@@ -2,6 +2,8 @@
 
 A semantic movie search application using Retrieval-Augmented Generation (RAG). Search for movies by themes, vibes, and moods - not just genres.
 
+**🚀 [Try it live!](https://movie-math.streamlit.app/)** - Search across 21,555 movies instantly.
+
 ## Features
 
 - **Semantic Search**: Find movies by describing themes, moods, or concepts
@@ -240,3 +242,23 @@ Combine two movies to find films that blend both styles:
 - "The Matrix" + "Her"
 - "Grand Budapest Hotel" + "Knives Out"
 - "Arrival" + "Eternal Sunshine"
+
+---
+
+## Deployment
+
+The application is deployed and live at **[https://movie-math.streamlit.app/](https://movie-math.streamlit.app/)**
+
+**Deployment Details:**
+- **Platform**: Streamlit Community Cloud (free tier)
+- **Database**: Pre-built FAISS index with 21,555 movies (committed to git)
+- **No API key required**: App runs entirely off pre-built embeddings
+- **Performance**: Fast search queries (~200-500ms)
+- **Auto-updates**: Pushes to main branch automatically redeploy
+
+**To deploy your own instance:**
+1. Fork this repository
+2. Go to [share.streamlit.io](https://share.streamlit.io)
+3. Connect your forked repository
+4. Set main file path: `src/app.py`
+5. Deploy!
