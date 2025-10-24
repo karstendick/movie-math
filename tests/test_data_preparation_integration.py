@@ -28,23 +28,27 @@ def api_key():
     return key
 
 
+@pytest.mark.integration
 def test_api_key_validation(api_key):
     """Test API key validation with real API."""
     assert validate_api_key(api_key) is True
 
 
+@pytest.mark.integration
 def test_invalid_api_key_rejected():
     """Test that invalid API key raises ValueError."""
     with pytest.raises(ValueError, match="Invalid TMDb API key"):
         validate_api_key("invalid_key_12345")
 
 
+@pytest.mark.integration
 def test_empty_api_key_rejected():
     """Test that empty API key raises ValueError."""
     with pytest.raises(ValueError, match="API key is missing"):
         validate_api_key("")
 
 
+@pytest.mark.integration
 def test_fetch_small_sample(api_key):
     """Test fetching movies from API."""
     # Note: This will fetch ALL movies meeting criteria
@@ -58,6 +62,7 @@ def test_fetch_small_sample(api_key):
     assert all(df["votes"] >= 50), "All movies should have >= 50 votes"
 
 
+@pytest.mark.integration
 def test_fetch_movie_credits_inception(api_key):
     """Test fetching credits for Inception."""
     credits = fetch_movie_credits(api_key, 27205)  # Inception movie ID
@@ -68,6 +73,7 @@ def test_fetch_movie_credits_inception(api_key):
     assert len(credits["cast"]) <= 5, "Should have at most 5 cast members"
 
 
+@pytest.mark.integration
 def test_fetch_movie_credits_invalid_id(api_key):
     """Test fetching credits for invalid movie ID."""
     # Using a very high ID that shouldn't exist

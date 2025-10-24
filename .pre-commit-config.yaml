@@ -21,7 +21,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest (unit tests only)
-        entry: python -m pytest tests/test_data_preparation_unit.py -v
+        entry: python -m pytest tests/ -m "not integration" -v
         language: system
         pass_filenames: false
         always_run: true
