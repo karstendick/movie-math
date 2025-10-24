@@ -4,42 +4,6 @@ This document contains potential features and improvements to implement after th
 
 ---
 
-## V2 Features
-
-### Accessibility Improvements
-**Priority: High** (moved to top of V2 list per user request)
-
-- Alt text for movie posters
-- Keyboard navigation support
-- Screen reader compatibility
-- ARIA labels for interactive elements
-- High contrast mode support
-
----
-
-### Testing & Quality
-
-- Unit tests for data cleaning functions
-- Unit tests for search functions with known inputs/outputs
-- Integration tests for end-to-end search
-- Edge case testing (empty queries, non-existent movies)
-- Extend CI/CD to run pytest
-- Code coverage reporting
-
----
-
-### Mood Picker Tab
-
-Pre-defined mood searches:
-- "Need a Good Cry" → emotional dramas about loss and redemption
-- "Brain Food" → thought-provoking films with complex themes
-- "Pure Escapism" → fun adventure films with spectacular visuals
-- "Cozy Evening" → heartwarming feel-good stories
-- "Date Night" → romantic comedies with chemistry
-- "Sunday Morning" → light wholesome family-friendly films
-
----
-
 ### Additional UI Features
 
 - Search history/recent searches (session state)
@@ -130,14 +94,3 @@ For learning more advanced RAG concepts:
 - **Re-ranking** with cross-encoder
 - **Query expansion**
 - **Relevance feedback**
-
----
-
-## Notes
-
-- These features are not required for the MVP
-- Focus on core RAG functionality first
-- Accessibility should be prioritized when moving to V2
-- **IMPORTANT: Implement testing infrastructure before adding new features** to prevent regressions
-  - See Testing & Quality section above for specific testing goals
-  - Consider this a prerequisite for V2 development

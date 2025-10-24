@@ -152,24 +152,27 @@ def inject_custom_css():
             border-color: #777;
         }
 
-        /* Remove ALL red/focus colors from inputs */
+        /* Accessible input styling - keep focus indicators visible */
         div[data-baseweb="input"],
         div[data-baseweb="base-input"],
         input {
             border-color: #4a4a4a !important;
         }
 
+        /* Enhanced focus styles for keyboard navigation accessibility */
         div[data-baseweb="input"]:focus-within,
         div[data-baseweb="base-input"]:focus-within,
         input:focus {
-            border-color: #666 !important;
-            box-shadow: none !important;
+            border-color: #0066cc !important;
+            box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2) !important;
+            outline: 2px solid #0066cc;
+            outline-offset: 2px;
         }
 
-        /* Remove focus ring */
-        div[class*="st-emotion-cache"] input:focus {
-            outline: none !important;
-            border-color: #666 !important;
+        /* Accessible button focus styles */
+        .stButton button:focus {
+            outline: 2px solid #0066cc;
+            outline-offset: 2px;
         }
 
         /* Tab styling */
@@ -310,38 +313,58 @@ def display_movie_grid(
             movie = movies.iloc[movie_idx]
 
             with row_cols[col_idx]:
-                # Poster
+                # Get movie details for accessibility
+                title = movie["title"]
+                year = movie.get("year", "")
+                year_str = f" ({int(year)})" if pd.notna(year) else ""
+
+                # Poster with accessible description
                 poster_url = movie.get("poster_url", "")
                 if poster_url and pd.notna(poster_url):
-                    st.image(poster_url, width="stretch")
-                else:
-                    # Placeholder if no poster
+                    # Use HTML with alt text for accessibility
                     st.markdown(
-                        '<div style="background-color: #f0f0f0; height: 300px; '
+                        f'<img src="{poster_url}" '
+                        f'alt="Movie poster for {title}{year_str}" '
+                        f'style="width: 100%; border-radius: 6px; '
+                        f'box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    # Placeholder if no poster with accessible label
+                    st.markdown(
+                        f'<div role="img" aria-label="No poster available for {title}" '
+                        f'style="background-color: #f0f0f0; height: 300px; '
                         "display: flex; align-items: center; justify-content: center; "
                         'border-radius: 6px;">\U0001f3ac</div>',
                         unsafe_allow_html=True,
                     )
 
-                # Title and year
-                title = movie["title"]
-                year = movie.get("year", "")
+                # Title and year with semantic heading
                 if pd.notna(year):
                     st.markdown(f"**{title}** ({int(year)})")
                 else:
                     st.markdown(f"**{title}**")
 
-                # Similarity score
+                # Similarity score with accessible label
                 if show_similarity and "similarity" in movie:
                     similarity = movie["similarity"]
                     # Convert cosine similarity (-1 to 1) to percentage (0-100%)
                     percentage = (similarity + 1) / 2 * 100
-                    st.markdown(f"\U0001f3af **{percentage:.0f}% match**")
+                    st.markdown(
+                        f'<span role="status" '
+                        f'aria-label="Match score: {percentage:.0f} percent">'
+                        f"\U0001f3af **{percentage:.0f}% match**</span>",
+                        unsafe_allow_html=True,
+                    )
 
-                # Rating
+                # Rating with accessible label
                 if "rating" in movie and pd.notna(movie["rating"]):
                     rating = movie["rating"]
-                    st.markdown(f"\u2b50 {rating:.1f}")
+                    st.markdown(
+                        f'<span aria-label="Rating: {rating:.1f} out of 10">'
+                        f"\u2b50 {rating:.1f}</span>",
+                        unsafe_allow_html=True,
+                    )
 
                 # Genres
                 if "genres" in movie:
@@ -412,20 +435,25 @@ def tab_semantic_search(model, index, movies_df):
                     )
 
     # Search form (allows Enter key submission)
-    st.write("Search for movies:")
     with st.form(key="semantic_search_form"):
         col1, col2 = st.columns([6, 1], gap="small")
 
         with col1:
             query = st.text_input(
-                "Search",
+                "Search for movies by theme, mood, or description",
                 key="semantic_query_input",
                 placeholder="e.g., movies about the cost of ambition",
-                label_visibility="collapsed",
+                help=(
+                    "Describe the type of movie you're looking for "
+                    "using any words or phrases"
+                ),
             )
 
         with col2:
-            search_submitted = st.form_submit_button("Search", use_container_width=True)
+            st.markdown("<br>", unsafe_allow_html=True)  # Align button with input
+            search_submitted = st.form_submit_button(
+                "Search", use_container_width=True, type="primary"
+            )
 
     # Execute search if form submitted
     if search_submitted and query and len(query.strip()) > 0:
@@ -461,21 +489,24 @@ def tab_contrastive_search(model, index, movies_df):
             options=[""] + movie_options,
             index=0,
             placeholder="Search for a movie...",
+            help="Start typing to search for movies in the database",
         )
 
         # Avoid text input with search button aligned
-        st.write("What aspects do you want to avoid?")
         col1, col2 = st.columns([6, 1], gap="small")
 
         with col1:
             avoid_text = st.text_input(
                 "What aspects do you want to avoid?",
                 placeholder="e.g., confusing, violent, sad",
-                label_visibility="collapsed",
+                help="Describe themes, tones, or elements you want to avoid",
             )
 
         with col2:
-            search_submitted = st.form_submit_button("Search", use_container_width=True)
+            st.markdown("<br>", unsafe_allow_html=True)  # Align button with input
+            search_submitted = st.form_submit_button(
+                "Search", use_container_width=True, type="primary"
+            )
 
     if (
         search_submitted
@@ -524,6 +555,7 @@ def tab_movie_blender(model, index, movies_df):
             index=0,
             key="blend_movie1_select",
             placeholder="Search for a movie...",
+            help="Choose the first movie to blend",
         )
 
     with col2:
@@ -533,6 +565,7 @@ def tab_movie_blender(model, index, movies_df):
             index=0,
             key="blend_movie2_select",
             placeholder="Search for a movie...",
+            help="Choose the second movie to blend",
         )
 
     # Automatically search when both movies are selected
