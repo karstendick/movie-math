@@ -42,20 +42,49 @@ Pre-defined mood searches:
 
 ### Additional UI Features
 
-- Random movie button ("Surprise me!")
 - Search history/recent searches (session state)
 - Watchlist/favorites (session state)
 - "More like this" button on each movie card
-- Export results to CSV/JSON
+- **Movie detail improvements:**
+  - Link each movie to its TMDB page
+  - Show all indexed information (top 5 actors, full description, genres, etc.)
+  - Tighter spacing on movie cards to fit more results on screen
+- Expand/collapse movie details accordion
 
 ---
 
 ### Enhanced Search Features
 
-- Configurable contrastive search weight (slider in UI from 0.0 to 1.0)
-- Advanced search with metadata filters (genre, rating, year range)
 - Similar movies graph visualization
-- Director/actor filtering
+
+---
+
+### RAG Visualization & Learning Features
+**Goal: Showcase RAG understanding and portfolio value**
+
+- **Embedding space visualization:**
+  - 2D/3D projection of movie embeddings (UMAP/t-SNE)
+  - Interactive scatter plot where you can hover/click movies
+  - Color-code by genre, decade, or rating
+  - Show query vector and nearest neighbors in the space
+
+- **Index inspection tools:**
+  - View raw embedding vectors for any movie
+  - Compare embedding similarity between any two movies
+  - Show which text fields contributed most to a movie's embedding
+  - Display FAISS index statistics (size, dimensions, number of vectors)
+
+- **Search explainability:**
+  - Visualize cosine similarity scores for top results
+  - Show the generated embedding for user queries
+  - Highlight which query terms matched which movie attributes
+  - Side-by-side comparison of query vector vs. result vectors
+
+- **Debug/learning mode:**
+  - Toggle to show technical details (embedding distances, retrieval times)
+  - Export search results with similarity scores to JSON
+  - "Behind the scenes" tab explaining how the RAG system works
+  - Example queries with explanations of why results were returned
 
 ---
 
@@ -69,7 +98,6 @@ Pre-defined mood searches:
 ### Data Management
 
 - Scheduled data refresh (cron job + `setup.py --refresh`)
-- `--skip-credits` flag for faster development setup
 
 ---
 
@@ -78,6 +106,10 @@ Pre-defined mood searches:
 - Matching attributes highlighting (which fields contributed to match)
 - "Similar to these movies" context
 - Keyword highlighting in descriptions
+- **Search stats display:**
+  - Show search metadata after each query (e.g., "Searched 20,000 movies from 140 years in 0.4 seconds")
+  - Demonstrates the speed and scale of the RAG system
+  - Could include: total movies indexed, date range of movies, query time, number of results returned
 
 ---
 
@@ -106,3 +138,6 @@ For learning more advanced RAG concepts:
 - These features are not required for the MVP
 - Focus on core RAG functionality first
 - Accessibility should be prioritized when moving to V2
+- **IMPORTANT: Implement testing infrastructure before adding new features** to prevent regressions
+  - See Testing & Quality section above for specific testing goals
+  - Consider this a prerequisite for V2 development
