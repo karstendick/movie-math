@@ -744,7 +744,7 @@ def main():
     model, index, movies_df = load_system()
 
     # Compact header
-    st.markdown(f"## \U0001f3ac Movie Math · *{len(movies_df):,} movies*")
+    st.markdown("## \U0001f3ac Movie Math")
 
     # Create tabs
     tab1, tab2, tab3 = st.tabs(
