@@ -6,6 +6,7 @@ and movie blending powered by RAG (Retrieval-Augmented Generation).
 """
 
 import logging
+import time
 from pathlib import Path
 from typing import List
 
@@ -62,8 +63,8 @@ def inject_custom_css():
         .movie-card {
             border: 1px solid #e0e0e0;
             border-radius: 8px;
-            padding: 10px;
-            margin: 10px 0;
+            padding: 8px;
+            margin: 6px 0;
             transition: transform 0.2s, box-shadow 0.2s;
             background-color: white;
             height: 100%;
@@ -79,23 +80,23 @@ def inject_custom_css():
             width: 100%;
             border-radius: 6px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
 
         /* Movie title styling */
         .movie-title {
             font-weight: bold;
-            font-size: 14px;
-            margin-bottom: 4px;
+            font-size: 13px;
+            margin-bottom: 3px;
             color: #1f1f1f;
-            line-height: 1.3;
+            line-height: 1.2;
         }
 
         /* Movie info styling */
         .movie-info {
-            font-size: 12px;
+            font-size: 11px;
             color: #666;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
         }
 
         /* Similarity badge */
@@ -103,11 +104,11 @@ def inject_custom_css():
             display: inline-block;
             background-color: #4CAF50;
             color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 11px;
+            padding: 3px 6px;
+            border-radius: 10px;
+            font-size: 10px;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         /* Rating badge */
@@ -121,10 +122,10 @@ def inject_custom_css():
             display: inline-block;
             background-color: #e3f2fd;
             color: #1976d2;
-            padding: 2px 8px;
-            border-radius: 10px;
+            padding: 1px 6px;
+            border-radius: 8px;
             font-size: 10px;
-            margin: 2px;
+            margin: 1px;
         }
 
         /* Footer styling */
@@ -318,17 +319,35 @@ def display_movie_grid(
                 year = movie.get("year", "")
                 year_str = f" ({int(year)})" if pd.notna(year) else ""
 
-                # Poster with accessible description
+                # Get TMDB URL
+                tmdb_url = ""
+                if "id" in movie and pd.notna(movie["id"]):
+                    tmdb_url = f"https://www.themoviedb.org/movie/{int(movie['id'])}"
+
+                # Poster with accessible description - make it clickable
                 poster_url = movie.get("poster_url", "")
                 if poster_url and pd.notna(poster_url):
                     # Use HTML with alt text for accessibility
-                    st.markdown(
-                        f'<img src="{poster_url}" '
-                        f'alt="Movie poster for {title}{year_str}" '
-                        f'style="width: 100%; border-radius: 6px; '
-                        f'box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />',
-                        unsafe_allow_html=True,
-                    )
+                    if tmdb_url:
+                        st.markdown(
+                            f'<a href="{tmdb_url}" target="_blank">'
+                            f'<img src="{poster_url}" '
+                            f'alt="Movie poster for {title}{year_str}" '
+                            f'style="width: 100%; border-radius: 6px; '
+                            f"box-shadow: 0 2px 8px rgba(0,0,0,0.1); "
+                            f'transition: opacity 0.2s;" '
+                            f'onmouseover="this.style.opacity=0.8" '
+                            f'onmouseout="this.style.opacity=1" /></a>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(
+                            f'<img src="{poster_url}" '
+                            f'alt="Movie poster for {title}{year_str}" '
+                            f'style="width: 100%; border-radius: 6px; '
+                            f'box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />',
+                            unsafe_allow_html=True,
+                        )
                 else:
                     # Placeholder if no poster with accessible label
                     st.markdown(
@@ -339,47 +358,139 @@ def display_movie_grid(
                         unsafe_allow_html=True,
                     )
 
-                # Title and year with semantic heading
-                if pd.notna(year):
-                    st.markdown(f"**{title}** ({int(year)})")
-                else:
-                    st.markdown(f"**{title}**")
-
-                # Similarity score with accessible label
+                # Title with match % and rating - make it clickable
                 if show_similarity and "similarity" in movie:
                     similarity = movie["similarity"]
-                    # Convert cosine similarity (-1 to 1) to percentage (0-100%)
+                    # Convert cosine similarity to percentage
                     percentage = (similarity + 1) / 2 * 100
-                    st.markdown(
-                        f'<span role="status" '
-                        f'aria-label="Match score: {percentage:.0f} percent">'
-                        f"\U0001f3af **{percentage:.0f}% match**</span>",
-                        unsafe_allow_html=True,
+                    match_style = (
+                        "color: #4CAF50; font-weight: bold; "
+                        "font-size: 11px; margin-left: 6px;"
                     )
+                    match_badge = (
+                        f'<span style="{match_style}">'
+                        f"{percentage:.0f}% match</span>"
+                    )
+                else:
+                    match_badge = ""
 
-                # Rating with accessible label
+                # Add rating badge
                 if "rating" in movie and pd.notna(movie["rating"]):
                     rating = movie["rating"]
-                    st.markdown(
-                        f'<span aria-label="Rating: {rating:.1f} out of 10">'
-                        f"\u2b50 {rating:.1f}</span>",
-                        unsafe_allow_html=True,
+                    rating_style = "font-size: 11px; margin-left: 6px;"
+                    rating_badge = (
+                        f'<span style="{rating_style}" '
+                        f'aria-label="Rating: {rating:.1f} out of 10">'
+                        f"\u2b50 {rating:.1f}</span>"
                     )
+                else:
+                    rating_badge = ""
+
+                if tmdb_url:
+                    if pd.notna(year):
+                        title_html = (
+                            f'<a href="{tmdb_url}" target="_blank" '
+                            f'style="text-decoration: none; '
+                            f'color: inherit;">'
+                            f'<strong style="font-size: 13px;">'
+                            f"{title}</strong> "
+                            f'<span style="font-size: 12px;">'
+                            f"({int(year)})</span></a>"
+                            f"{match_badge}{rating_badge}"
+                        )
+                        st.markdown(title_html, unsafe_allow_html=True)
+                    else:
+                        title_html = (
+                            f'<a href="{tmdb_url}" target="_blank" '
+                            f'style="text-decoration: none; '
+                            f'color: inherit;">'
+                            f'<strong style="font-size: 13px;">'
+                            f"{title}</strong></a>"
+                            f"{match_badge}{rating_badge}"
+                        )
+                        st.markdown(title_html, unsafe_allow_html=True)
+                else:
+                    if pd.notna(year):
+                        title_html = (
+                            f'<strong style="font-size: 13px;">'
+                            f"{title}</strong> "
+                            f'<span style="font-size: 12px;">'
+                            f"({int(year)})</span>"
+                            f"{match_badge}{rating_badge}"
+                        )
+                        st.markdown(title_html, unsafe_allow_html=True)
+                    else:
+                        title_html = (
+                            f'<strong style="font-size: 13px;">'
+                            f"{title}</strong>"
+                            f"{match_badge}{rating_badge}"
+                        )
+                        st.markdown(title_html, unsafe_allow_html=True)
 
                 # Genres
                 if "genres" in movie:
                     genres = movie["genres"]
                     if isinstance(genres, list) and len(genres) > 0:
-                        genres_str = ", ".join(genres[:3])  # Show first 3 genres
-                        st.markdown(f"_{genres_str}_")
+                        genres_str = ", ".join(genres)  # Show all
+                        genre_style = (
+                            "font-size: 11px; font-style: italic; "
+                            "margin-top: 2px; margin-bottom: 2px;"
+                        )
+                        st.markdown(
+                            f'<div style="{genre_style}">' f"{genres_str}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                # Overview/Description
+                if "overview" in movie:
+                    overview = movie.get("overview", "")
+                    if overview and not (
+                        isinstance(overview, float) and pd.isna(overview)
+                    ):
+                        overview_style = (
+                            "font-size: 10px; color: #555; "
+                            "margin-top: 3px; margin-bottom: 3px; "
+                            "line-height: 1.3;"
+                        )
+                        st.markdown(
+                            f'<div style="{overview_style}">' f"{overview}</div>",
+                            unsafe_allow_html=True,
+                        )
 
                 # Director
                 if "director" in movie and pd.notna(movie["director"]):
                     director = movie["director"]
-                    st.caption(f"Dir: {director}")
+                    dir_style = (
+                        "font-size: 11px; color: #666; "
+                        "margin-top: 2px; margin-bottom: 1px;"
+                    )
+                    st.markdown(
+                        f'<div style="{dir_style}">' f"Dir: {director}</div>",
+                        unsafe_allow_html=True,
+                    )
 
-                # Add some spacing
-                st.markdown("<br>", unsafe_allow_html=True)
+                # Cast (top 5 actors)
+                if "cast" in movie:
+                    cast = movie.get("cast")
+                    has_len = hasattr(cast, "__len__")
+                    if cast is not None and has_len and len(cast) > 0:
+                        # Convert to list if it's a numpy array
+                        to_list = hasattr(cast, "tolist")
+                        cast_list = cast.tolist() if to_list else cast
+                        cast_str = ", ".join(cast_list[:5])
+                        cast_style = (
+                            "font-size: 11px; color: #666; "
+                            "margin-top: 1px; margin-bottom: 2px;"
+                        )
+                        st.markdown(
+                            f'<div style="{cast_style}">' f"Cast: {cast_str}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                # Add minimal spacing
+                st.markdown(
+                    '<div style="margin-bottom: 2px;"></div>', unsafe_allow_html=True
+                )
 
 
 def display_footer():
@@ -430,9 +541,12 @@ def tab_semantic_search(model, index, movies_df):
                 # Update query input and execute search
                 st.session_state.semantic_query_input = example
                 with st.spinner("Searching for movies..."):
+                    start_time = time.time()
                     st.session_state.semantic_results = semantic_search(
                         example, model, index, movies_df, k=100
                     )
+                    search_time = time.time() - start_time
+                    st.session_state.semantic_search_time = search_time
 
     # Search form (allows Enter key submission)
     with st.form(key="semantic_search_form"):
@@ -458,12 +572,26 @@ def tab_semantic_search(model, index, movies_df):
     # Execute search if form submitted
     if search_submitted and query and len(query.strip()) > 0:
         with st.spinner("Searching for movies..."):
+            start_time = time.time()
             st.session_state.semantic_results = semantic_search(
                 query, model, index, movies_df, k=100
             )
+            search_time = time.time() - start_time
+            st.session_state.semantic_search_time = search_time
 
     # Display results if they exist
     if st.session_state.semantic_results is not None:
+        # Display search stats
+        if "semantic_search_time" in st.session_state:
+            num_movies = len(movies_df)
+            search_time = st.session_state.semantic_search_time
+            st.markdown(
+                f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
+                f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
         display_movie_grid(
             st.session_state.semantic_results, cols=5, show_similarity=True
         )
@@ -520,9 +648,11 @@ def tab_contrastive_search(model, index, movies_df):
         with st.spinner(
             f"Finding movies like '{movie_title}' but not '{avoid_text}'..."
         ):
+            start_time = time.time()
             results = contrastive_search(
                 movie_title, avoid_text, model, index, movies_df, k=100
             )
+            search_time = time.time() - start_time
 
         if len(results) == 0:
             st.error(
@@ -530,6 +660,14 @@ def tab_contrastive_search(model, index, movies_df):
                 f"Please try another movie."
             )
         else:
+            # Display search stats
+            num_movies = len(movies_df)
+            st.markdown(
+                f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
+                f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
             display_movie_grid(results, cols=5, show_similarity=True)
 
 
@@ -575,15 +713,25 @@ def tab_movie_blender(model, index, movies_df):
         movie2_title = parse_movie_title_from_selection(movie2)
 
         with st.spinner(f"Blending '{movie1_title}' and '{movie2_title}'..."):
+            start_time = time.time()
             results = blend_movies(
                 movie1_title, movie2_title, model, index, movies_df, k=100
             )
+            search_time = time.time() - start_time
 
         if len(results) == 0:
             st.error(
                 "One or both movies not found in the database. " "Please try again."
             )
         else:
+            # Display search stats
+            num_movies = len(movies_df)
+            st.markdown(
+                f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
+                f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
             display_movie_grid(results, cols=5, show_similarity=True)
 
 
