@@ -10,9 +10,9 @@ This document contains potential features and improvements to implement after th
 - Watchlist/favorites (session state)
 - "More like this" button on each movie card
 - **Movie detail improvements:**
-  - Link each movie to its TMDB page
-  - Show all indexed information (top 5 actors, full description, genres, etc.)
-  - Tighter spacing on movie cards to fit more results on screen
+  - ✅ Link each movie to its TMDB page
+  - ✅ Show all indexed information (top 5 actors, full description, genres, etc.)
+  - ✅ Tighter spacing on movie cards to fit more results on screen
 - Expand/collapse movie details accordion
 
 ---
@@ -70,10 +70,10 @@ This document contains potential features and improvements to implement after th
 - Matching attributes highlighting (which fields contributed to match)
 - "Similar to these movies" context
 - Keyword highlighting in descriptions
-- **Search stats display:**
-  - Show search metadata after each query (e.g., "Searched 20,000 movies from 140 years in 0.4 seconds")
-  - Demonstrates the speed and scale of the RAG system
-  - Could include: total movies indexed, date range of movies, query time, number of results returned
+- **✅ Search stats display:**
+  - ✅ Show search metadata after each query (e.g., "Searched 20,000 movies in 0.4 seconds")
+  - ✅ Demonstrates the speed and scale of the RAG system
+  - Could include: date range of movies, number of results returned
 
 ---
 
