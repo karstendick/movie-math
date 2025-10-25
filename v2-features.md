@@ -62,12 +62,6 @@ This document contains potential features and improvements to implement after th
 
 ---
 
-### Data Management
-
-- Scheduled data refresh (cron job + `setup.py --refresh`)
-
----
-
 ### Enhanced Result Explanations
 
 - Matching attributes highlighting (which fields contributed to match)
