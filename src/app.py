@@ -13,7 +13,13 @@ from typing import List
 import pandas as pd
 import streamlit as st
 
-from search import blend_movies, contrastive_search, load_search_system, semantic_search
+from search import (
+    blend_movies,
+    contrastive_search,
+    load_search_system,
+    semantic_search,
+    similar_movies_search,
+)
 
 # Set up logging
 logging.basicConfig(
@@ -185,6 +191,58 @@ def inject_custom_css():
             font-size: 14px;
             padding: 8px 16px;
         }
+
+        /* Style radio buttons to look like tabs */
+        /* Container for radio group */
+        div[role="radiogroup"][data-baseweb="radio-group"] {
+            gap: 0px;
+            background-color: transparent;
+            border-bottom: 2px solid #e0e0e0;
+            padding: 0;
+        }
+
+        /* Individual radio button containers */
+        div[role="radiogroup"] > label {
+            background-color: transparent !important;
+            border: none !important;
+            border-bottom: 3px solid transparent !important;
+            padding: 12px 24px !important;
+            margin: 0 !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            color: #666 !important;
+            cursor: pointer !important;
+            transition: all 0.2s !important;
+            border-radius: 0 !important;
+        }
+
+        /* Hover state */
+        div[role="radiogroup"] > label:hover {
+            background-color: rgba(128, 128, 128, 0.15) !important;
+        }
+
+        /* Active/checked state - target the label when input is checked */
+        div[role="radiogroup"] > label:has(input:checked) {
+            border-bottom: 3px solid #1f77b4 !important;
+            color: #1f1f1f !important;
+            background-color: transparent !important;
+        }
+
+        /* Hide the radio button circles */
+        div[role="radiogroup"] input[type="radio"] {
+            display: none !important;
+        }
+
+        /* Hide the radio indicator */
+        div[role="radiogroup"] label > div[data-testid="stMarkdownContainer"] {
+            margin: 0 !important;
+        }
+
+        div[role="radiogroup"] label > div:first-child:not(
+            [data-testid="stMarkdownContainer"]
+        ) {
+            display: none !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -276,6 +334,9 @@ def parse_movie_title_from_selection(selection: str) -> str:
 
 def display_movie_grid(
     movies: pd.DataFrame,
+    model,
+    index,
+    movies_df: pd.DataFrame,
     cols: int = 5,
     show_similarity: bool = True,
 ):
@@ -487,6 +548,29 @@ def display_movie_grid(
                             unsafe_allow_html=True,
                         )
 
+                # "More like this" button
+                button_key = f"similar_{movie_idx}_{title.replace(' ', '_')}"
+                if st.button(
+                    "Find similar →",
+                    key=button_key,
+                    help=f"Find movies similar to {title}",
+                    use_container_width=True,
+                ):
+                    # Store the movie for the Similar Movies tab
+                    st.session_state.similar_movies_target = title
+                    st.session_state.similar_movies_trigger = True
+                    # Trigger the search
+                    start_time = time.time()
+                    results = similar_movies_search(
+                        title, model, index, movies_df, k=100
+                    )
+                    search_time = time.time() - start_time
+                    st.session_state.similar_movies_results = results
+                    st.session_state.similar_movies_time = search_time
+                    # Set flag to switch to Similar Movies tab
+                    st.session_state.switch_to_similar = True
+                    st.rerun()
+
                 # Add minimal spacing
                 st.markdown(
                     '<div style="margin-bottom: 2px;"></div>', unsafe_allow_html=True
@@ -593,7 +677,12 @@ def tab_semantic_search(model, index, movies_df):
             )
 
         display_movie_grid(
-            st.session_state.semantic_results, cols=5, show_similarity=True
+            st.session_state.semantic_results,
+            model,
+            index,
+            movies_df,
+            cols=5,
+            show_similarity=True,
         )
 
 
@@ -668,7 +757,9 @@ def tab_contrastive_search(model, index, movies_df):
                 f"</div>",
                 unsafe_allow_html=True,
             )
-            display_movie_grid(results, cols=5, show_similarity=True)
+            display_movie_grid(
+                results, model, index, movies_df, cols=5, show_similarity=True
+            )
 
 
 def tab_movie_blender(model, index, movies_df):
@@ -732,7 +823,83 @@ def tab_movie_blender(model, index, movies_df):
                 f"</div>",
                 unsafe_allow_html=True,
             )
-            display_movie_grid(results, cols=5, show_similarity=True)
+            display_movie_grid(
+                results, model, index, movies_df, cols=5, show_similarity=True
+            )
+
+
+def tab_similar_movies(model, index, movies_df):
+    """
+    Tab 4: Similar Movies.
+
+    Features:
+    - Shows movies similar to a selected movie
+    - Populated when user clicks "More like this" button
+    - Can also manually search for similar movies
+    """
+    # Get autocomplete options
+    movie_options = get_movie_autocomplete_options(movies_df)
+
+    # Check if we have a movie from "More like this" button
+    # and find its index in the options list
+    default_index = 0
+    if "similar_movies_target" in st.session_state:
+        target_movie = st.session_state.similar_movies_target
+        # Find the matching option in the list
+        # Match format is "Title (Year)"
+        matching_options = [
+            opt
+            for opt in movie_options
+            if opt.startswith(target_movie + " (") or opt == target_movie
+        ]
+        if matching_options:
+            # Find index in the full list (add 1 for the empty string at index 0)
+            default_index = movie_options.index(matching_options[0]) + 1
+
+    # Movie selection dropdown (no form, auto-search on selection)
+    # Use the target from session state to determine selection
+    if "similar_movies_trigger" in st.session_state:
+        # Fresh search triggered by button - use the target
+        del st.session_state.similar_movies_trigger
+
+    selected_movie = st.selectbox(
+        "Find movies similar to:",
+        options=[""] + movie_options,
+        index=default_index,
+        placeholder="Search for a movie...",
+        help="Start typing to search for movies in the database",
+    )
+
+    # Automatically search when a movie is selected
+    if selected_movie:
+        movie_title = parse_movie_title_from_selection(selected_movie)
+
+        with st.spinner(f"Finding movies similar to '{movie_title}'..."):
+            start_time = time.time()
+            results = similar_movies_search(movie_title, model, index, movies_df, k=100)
+            search_time = time.time() - start_time
+            st.session_state.similar_movies_results = results
+            st.session_state.similar_movies_time = search_time
+
+    # Display results if they exist
+    if "similar_movies_results" in st.session_state:
+        results = st.session_state.similar_movies_results
+
+        if len(results) == 0:
+            st.error("Movie not found in the database. Please try another movie.")
+        else:
+            # Display search stats
+            num_movies = len(movies_df)
+            search_time = st.session_state.similar_movies_time
+            st.markdown(
+                f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
+                f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            display_movie_grid(
+                results, model, index, movies_df, cols=5, show_similarity=True
+            )
 
 
 def main():
@@ -746,23 +913,38 @@ def main():
     # Compact header
     st.markdown("## \U0001f3ac Movie Math")
 
-    # Create tabs
-    tab1, tab2, tab3 = st.tabs(
+    # Initialize active tab in session state
+    if "active_tab" not in st.session_state:
+        st.session_state.active_tab = "\U0001f50d Semantic Search"
+
+    # Check if we need to switch to Similar Movies tab
+    if st.session_state.get("switch_to_similar", False):
+        st.session_state.active_tab = "\U0001f3af Similar Movies"
+        st.session_state.switch_to_similar = False
+
+    # Tab selector
+    active_tab = st.radio(
+        "Select search mode:",
         [
             "\U0001f50d Semantic Search",
-            "\U0001f3af Like X But Not Y",
+            "\U0001f3af Similar Movies",
             "\U0001f3ac Movie Blender",
-        ]
+            "\U0001f4af Like X But Not Y",
+        ],
+        key="active_tab",
+        horizontal=True,
+        label_visibility="collapsed",
     )
 
-    with tab1:
+    # Display the active tab content
+    if active_tab == "\U0001f50d Semantic Search":
         tab_semantic_search(model, index, movies_df)
-
-    with tab2:
-        tab_contrastive_search(model, index, movies_df)
-
-    with tab3:
+    elif active_tab == "\U0001f3af Similar Movies":
+        tab_similar_movies(model, index, movies_df)
+    elif active_tab == "\U0001f3ac Movie Blender":
         tab_movie_blender(model, index, movies_df)
+    elif active_tab == "\U0001f4af Like X But Not Y":
+        tab_contrastive_search(model, index, movies_df)
 
     # Footer
     display_footer()

@@ -6,14 +6,17 @@ This document contains potential features and improvements to implement after th
 
 ### Additional UI Features
 
-- Search history/recent searches (session state)
-- Watchlist/favorites (session state)
-- "More like this" button on each movie card
+- ~~Search history/recent searches (session state)~~ - Out of scope
+- ~~Watchlist/favorites (session state)~~ - Out of scope
+- ✅ "More like this" button on each movie card
+  - ✅ Auto-switches to Similar Movies tab
+  - ✅ Pre-populates dropdown with selected movie
+  - ✅ Uses existing embeddings from FAISS index (fast!)
 - **Movie detail improvements:**
   - ✅ Link each movie to its TMDB page
   - ✅ Show all indexed information (top 5 actors, full description, genres, etc.)
   - ✅ Tighter spacing on movie cards to fit more results on screen
-- Expand/collapse movie details accordion
+- ~~Expand/collapse movie details accordion~~ - Out of scope
 
 ---
 

@@ -5,6 +5,7 @@ Implements various search strategies:
 - Semantic search: Find movies by themes, vibes, and moods
 - Contrastive search: "Like X but not Y" search
 - Movie blending: Find movies that combine two movies
+- Similar movies: Find movies similar to a given movie
 
 Note: Heavy dependencies (sentence_transformers, faiss) are imported lazily
 within functions to avoid slow startup times when not needed.
@@ -328,6 +329,91 @@ def blend_movies(
     results_df = results_df.head(k)
 
     logger.info(f"Found {len(results_df)} results (excluding source movies)")
+    if len(results_df) > 0:
+        logger.info(
+            f"Top match: '{results_df.iloc[0]['title']}' "
+            f"(score: {results_df.iloc[0]['similarity']:.4f})"
+        )
+
+    return results_df
+
+
+def similar_movies_search(
+    movie_title: str,
+    model: "SentenceTransformer",
+    index: "faiss.IndexFlatIP",
+    movies_df: pd.DataFrame,
+    k: int = 100,
+) -> pd.DataFrame:
+    """
+    Find movies similar to a given movie.
+
+    Implementation:
+    1. Find the movie by title
+    2. Get its embedding from the index by position
+    3. Search with that embedding
+    4. Include the source movie in results (per design spec)
+
+    Args:
+        movie_title: Title of the movie to find similar movies for
+        model: SentenceTransformer model (not used, but kept for consistency)
+        index: FAISS index
+        movies_df: DataFrame with movie metadata
+        k: Number of results to return (default 100)
+
+    Returns:
+        DataFrame with top k similar movies (including the source movie)
+    """
+    logger.info(f"Finding movies similar to: '{movie_title}'")
+
+    # Find the movie by title (case-insensitive)
+    # Try exact match first
+    movie_matches = movies_df[movies_df["title"].str.lower() == movie_title.lower()]
+
+    # If no exact match, try partial match
+    if len(movie_matches) == 0:
+        movie_matches = movies_df[
+            movies_df["title"].str.lower().str.contains(movie_title.lower(), na=False)
+        ]
+
+    if len(movie_matches) == 0:
+        logger.warning(f"Movie not found: '{movie_title}'")
+        # Return empty dataframe with same columns
+        result_df = movies_df.iloc[:0].copy()
+        result_df["similarity"] = pd.Series(dtype=float)
+        return result_df
+
+    # Use the first match (prefer more recent if multiple matches)
+    if len(movie_matches) > 1 and "year" in movie_matches.columns:
+        movie_matches = movie_matches.sort_values("year", ascending=False)
+
+    source_movie = movie_matches.iloc[0]
+    source_movie_idx = source_movie.name  # Index position in dataframe
+    logger.info(
+        f"Found movie: '{source_movie['title']}' "
+        f"({source_movie.get('year', 'N/A')})"
+    )
+
+    # Get the embedding directly from FAISS index using the movie's position
+    # Reconstruct the vector from the index
+    query_vector = index.reconstruct(int(source_movie_idx))
+
+    # Search FAISS index
+    similarities, indices = index.search(
+        query_vector.reshape(1, -1).astype(np.float32), k
+    )
+
+    # Extract results
+    top_indices = indices[0]
+    top_similarities = similarities[0]
+
+    # Get movies from dataframe
+    results_df = movies_df.iloc[top_indices].copy()
+
+    # Add similarity scores
+    results_df["similarity"] = top_similarities
+
+    logger.info(f"Found {len(results_df)} similar movies")
     if len(results_df) > 0:
         logger.info(
             f"Top match: '{results_df.iloc[0]['title']}' "
