@@ -58,7 +58,7 @@ This document contains potential features and improvements to implement after th
 ### External Integrations
 
 - Streaming availability (JustWatch API)
-- Social sharing (generate shareable links)
+- ✅ Social sharing (generate shareable links)
 
 ---
 

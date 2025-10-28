@@ -9,6 +9,7 @@ A semantic movie search application using Retrieval-Augmented Generation (RAG). 
 - **Semantic Search**: Find movies by describing themes, moods, or concepts
 - **Contrastive Search**: "Like X but not Y" - find similar movies while avoiding certain aspects
 - **Movie Blender**: Combine two movies to find films that blend both styles
+- **Share Results**: Generate shareable URLs to share your search results with others
 - **Rich Metadata**: Search includes directors, cast, genres, and plot descriptions
 
 ## Tech Stack
