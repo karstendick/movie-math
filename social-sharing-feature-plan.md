@@ -16,70 +16,69 @@ Enable users to share their Movie Math searches and results via shareable links.
 ## What Should Be Shareable?
 
 ### Core State to Encode:
-- **Search type** (semantic search vs similar movies)
+- **Search type** (semantic search vs similar movies vs blend vs contrastive)
 - **Query text** (for semantic search)
 - **Selected movie** (for similar movies search)
-- **Number of results** (k value)
-- **Tab state** (which tab is active)
+- **Two movies** (for movie blender)
+- **Movie + avoid text** (for contrastive search)
 
-### Optional/Future State:
+### Not Included (Out of Scope):
+- **Number of results** - Always fixed at k=100, not user-configurable
 - Scroll position to specific movie
 - Expanded/collapsed state of movie cards
-- Specific movie highlighted
 
 ---
 
 ## Technical Approach
 
-### Option 1: URL Query Parameters
-**Pros:**
-- Simple to implement
-- Human-readable
-- Easy to debug
-- No backend required
+### **SELECTED: Option 1 - URL Query Parameters**
 
-**Cons:**
-- URL length limits (~2000 chars)
-- Spaces and special characters need encoding
+We're going with simple, human-readable URL query parameters for the initial implementation.
 
-**Implementation:**
-```
-https://moviemath.com/?mode=semantic&q=movies+about+time+travel&k=10&tab=results
-https://moviemath.com/?mode=similar&movie=The+Matrix&movieId=603&k=10
-```
-
-### Option 2: Base64 Encoded State
-**Pros:**
-- Compact URLs
-- Can encode more complex state
-- Still no backend required
-
-**Cons:**
-- Not human-readable
-- Slightly more complex encoding/decoding
+**Why this approach:**
+- Simple to implement with Streamlit's native `st.query_params` API
+- Human-readable URLs make debugging easy
+- No backend/database required
+- Easy to share and understand
+- Movie queries are typically short enough to fit in URL limits
 
 **Implementation:**
 ```
-https://moviemath.com/?share=eyJtb2RlIjoic2VtYW50aWMiLCJxIjoidGltZSB0cmF2ZWwiLCJrIjoxMH0=
+https://moviemath.com/?mode=semantic&q=movies+about+time+travel
+https://moviemath.com/?mode=similar&movie=The+Matrix
+https://moviemath.com/?mode=blend&movie1=Inception&movie2=The+Matrix
+https://moviemath.com/?mode=contrastive&like=The+Godfather&avoid=violent
 ```
 
-### Option 3: Short Links with Backend
-**Pros:**
-- Very short URLs
-- Can track analytics
-- Can update/expire links
+**URL Length Considerations:**
+- Modern browsers support ~2000+ character URLs
+- Movie titles: typically < 50 chars
+- Search queries: typically < 200 chars
+- Well within safe limits for our use case
 
-**Cons:**
-- Requires backend/database
-- More complex implementation
-- Persistence concerns
+---
 
-**Implementation:**
-```
-https://moviemath.com/s/abc123
-```
+### Alternative Options (Not Selected)
 
-### **Recommended: Start with Option 1, migrate to Option 3 if needed**
+<details>
+<summary>Option 2: Base64 Encoded State (click to expand)</summary>
+
+**Pros:** Compact URLs, can encode complex state
+**Cons:** Not human-readable, harder to debug
+**Implementation:** `https://moviemath.com/?share=eyJtb2RlIjoic2VtYW50aWMi...`
+
+</details>
+
+<details>
+<summary>Option 3: Short Links with Backend (click to expand)</summary>
+
+**Pros:** Very short URLs, analytics, link management
+**Cons:** Requires backend/database, more complex
+**Implementation:** `https://moviemath.com/s/abc123`
+
+**Note:** Could migrate to this later if URL length becomes an issue or we want analytics.
+
+</details>
 
 ---
 
@@ -99,6 +98,10 @@ https://moviemath.com/s/abc123
 - [ ] Set active tab based on `mode` parameter
 - [ ] Auto-populate input fields and trigger search
 - [ ] Handle invalid/missing parameters gracefully
+- [ ] **Update search functions** to accept optional `year` parameter for disambiguation
+  - Modify `similar_movies_search()` to filter by year if provided
+  - Modify `blend_movies()` to filter by year if provided
+  - Modify `contrastive_search()` to filter by year if provided
 
 #### 3. Share Button UI Integration
 - [ ] Add "Share" button next to search stats display
@@ -115,64 +118,63 @@ https://moviemath.com/s/abc123
   'mode': 'semantic' | 'similar' | 'blend' | 'contrastive',
   'q': str,              # query text (semantic mode)
   'movie': str,          # movie title (similar mode)
+  'year': str,           # optional: movie year for disambiguation (similar mode)
   'movie1': str,         # first movie (blend mode)
+  'year1': str,          # optional: first movie year (blend mode)
   'movie2': str,         # second movie (blend mode)
+  'year2': str,          # optional: second movie year (blend mode)
   'like': str,           # movie to match (contrastive mode)
+  'likeyear': str,       # optional: movie year for disambiguation (contrastive mode)
   'avoid': str,          # aspect to avoid (contrastive mode)
 }
 ```
 
 Example URLs:
 - Semantic: `?mode=semantic&q=atmospheric+sci-fi+with+stunning+visuals`
-- Similar: `?mode=similar&movie=The+Matrix`
-- Blend: `?mode=blend&movie1=Inception&movie2=The+Matrix`
-- Contrastive: `?mode=contrastive&like=The+Godfather&avoid=violent`
-
-### Phase 2: Enhanced Sharing Features
-
-- [ ] Social media meta tags (OpenGraph, Twitter Cards)
-- [ ] Preview image generation for shared links
-- [ ] Share to Twitter/Facebook/LinkedIn buttons
-- [ ] QR code generation for mobile sharing
-
-### Phase 3: Short Links (Optional)
-
-- [ ] Backend API for creating short links
-- [ ] Database schema for link storage
-- [ ] Analytics tracking (views, clicks)
-- [ ] Link expiration/management
+- Similar: `?mode=similar&movie=The+Matrix&year=1999`
+- Similar (no year): `?mode=similar&movie=The+Matrix` (defaults to most recent)
+- Blend: `?mode=blend&movie1=Inception&year1=2010&movie2=The+Matrix&year2=1999`
+- Contrastive: `?mode=contrastive&like=The+Godfather&likeyear=1972&avoid=violent`
 
 ---
 
 ## UI/UX Design
 
 ### Share Button Placement
-- **Option A**: Next to search stats ("Searched 20,000 movies in 0.4 seconds")
-- **Option B**: Floating action button in bottom right
-- **Option C**: In header/toolbar area
+**SELECTED: Next to search stats** ("Searched 20,000 movies in 0.4 seconds")
+
+- Appears in the same row as the search stats
+- Only visible when search results exist
+- Compact and unobtrusive design
+- Natural location - users see stats, then can share
 
 ### Share Flow
 1. User clicks "Share" button
 2. URL is generated from current state
 3. URL is copied to clipboard automatically
-4. Show success message: "Link copied! Share your results."
-5. Optional: Show modal with link preview and social sharing options
+4. Show success message: "✓ Link copied!" (inline, next to button)
 
-### Visual Feedback
-- Icon: 🔗 or share icon (⤴)
+### Visual Design
+- Button style: Subtle, matches existing app design
+- Icon: 🔗 (link icon)
 - Tooltip: "Share these results"
-- Success state: Checkmark or "Copied!" message
+- Success feedback: "✓ Link copied!" appears briefly next to button
 
 ---
 
 ## Edge Cases to Handle
 
-1. **No Search Performed**: Disable/hide share button
-2. **Long Query Strings**: URL too long → truncate or switch to base64
-3. **Movie Not Found**: Shared similar movie link with invalid movie ID
-4. **Browser Compatibility**: Clipboard API not available in some browsers
-5. **Security**: Sanitize/validate URL parameters to prevent XSS
-6. **Stale Data**: Movie removed from index but shared link references it
+1. **No Search Performed**: Hide share button until results exist
+2. **Duplicate Movie Titles**: Multiple movies with same title (e.g., "The Departed" 2006 vs other versions)
+   - **Solution**: Include year in URL for similar/blend/contrastive modes
+   - URL format: `?mode=similar&movie=The+Departed&year=2006`
+   - Search function should use both title AND year when year is provided
+   - Falls back to "most recent" behavior if year not specified (current behavior)
+3. **Long Query Strings**: Rare but possible; browser URL limits ~2000 chars (graceful handling if exceeded)
+4. **Movie Not Found**: Shared link references movie no longer in index → show friendly error message
+5. **Browser Compatibility**: Clipboard API not available in older browsers → fallback to displaying URL for manual copy
+6. **Security**: Sanitize/validate URL parameters to prevent XSS attacks
+7. **Special Characters**: Properly encode/decode movie titles with special characters (e.g., "Amélie", "10 Things I Hate About You")
 
 ---
 
@@ -193,15 +195,19 @@ Example URLs:
 - Test on different browsers
 - Test mobile vs desktop
 - Test with special characters in queries
+- **Test duplicate movie titles** (e.g., share "The Departed" 2006, verify correct one loads)
+- Test movies with and without years in database
 
 ---
 
-## Success Metrics
+## Success Criteria
 
-- Number of shares generated
-- Click-through rate on shared links
-- Bounce rate on shared link visits
-- User feedback on sharing feature
+- Share button appears correctly when results exist
+- Shared URLs successfully restore search state
+- Copy-to-clipboard works reliably
+- All 4 search modes (semantic, similar, blend, contrastive) can be shared
+- Special characters in movie titles/queries are handled correctly
+- User feedback is positive
 
 ---
 
@@ -221,34 +227,50 @@ st.query_params['q'] = 'time travel movies'
 ```
 
 ### Share Button Implementation
-Two options for clipboard functionality:
 
-**Option A: JavaScript with streamlit-clipboard component**
+**SELECTED: JavaScript with Custom HTML Component**
+
+Using Streamlit's `components.html()` to create a custom share button with JavaScript clipboard functionality:
+
 ```python
 import streamlit.components.v1 as components
 
 def create_share_button(share_url):
+    """Display share button with JavaScript clipboard functionality."""
     components.html(f"""
-        <button onclick="navigator.clipboard.writeText('{share_url}')">
-            Share Results
-        </button>
+        <div style="margin: 10px 0;">
+            <button onclick="copyLink()"
+                    style="background: #4CAF50; color: white; border: none;
+                           padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                🔗 Share Results
+            </button>
+            <span id="copy-feedback" style="margin-left: 10px; color: #4CAF50; display: none;">
+                ✓ Link copied!
+            </span>
+        </div>
         <script>
-        function copyToClipboard() {{
+        function copyLink() {{
             navigator.clipboard.writeText('{share_url}')
-                .then(() => alert('Link copied!'));
+                .then(() => {{
+                    document.getElementById('copy-feedback').style.display = 'inline';
+                    setTimeout(() => {{
+                        document.getElementById('copy-feedback').style.display = 'none';
+                    }}, 2000);
+                }})
+                .catch(err => {{
+                    // Fallback for older browsers
+                    alert('Copy failed. URL: {share_url}');
+                }});
         }}
         </script>
-    """)
+    """, height=50)
 ```
 
-**Option B: Display URL with manual copy**
-```python
-col1, col2 = st.columns([4, 1])
-with col1:
-    st.code(share_url, language=None)
-with col2:
-    st.button("Copy", help="Copy link to clipboard")
-```
+**Why this approach:**
+- Native clipboard API support (works in modern browsers)
+- Clean, inline feedback ("✓ Link copied!")
+- No external dependencies needed
+- Fallback alert for older browsers
 
 ### Session State Integration
 Current session state structure (from app.py):
@@ -276,29 +298,29 @@ st.session_state.active_tab
 
 ## Technical Dependencies
 
-### Current Stack
-- **Streamlit** (native query params support)
+### Dependencies
+- **Streamlit** (native query params support via `st.query_params`)
+- **Streamlit components** (`streamlit.components.v1` for custom HTML/JS)
 - **Python urllib** (URL encoding/decoding)
-- **Python standard library** (base64 for optional encoding)
-
-### Optional Libraries
-- **streamlit-clipboard** (for better clipboard UX)
-- **pyshorteners** (for URL shortening, Phase 3)
-
-### Optional Backend (Phase 3)
-- FastAPI or Flask API
-- Database (PostgreSQL, MongoDB, etc.)
-- Short URL generation
-- Analytics service
+- No external libraries needed - using native browser Clipboard API
 
 ---
 
-## Open Questions
+## Design Decisions
 
-1. Should we encode the actual search results or just the query? (Just query → re-run search)
-2. Should shared links work if the index changes? (Yes, but results may differ)
-3. Do we need authentication/user accounts for tracking shares? (No for MVP)
-4. Should we add a "report inappropriate content" for shared links? (Future consideration)
+1. **Encode results or just query?** → Just the query/parameters; re-run search on shared link open
+   - Keeps URLs short and simple
+   - Ensures users see up-to-date results if index changes
+
+2. **Handle index changes?** → Yes, shared links re-run searches with current index
+   - Results may differ if movies added/removed
+   - This is acceptable and expected behavior
+
+3. **User accounts/authentication?** → No, not needed
+   - Sharing is anonymous
+   - No tracking or analytics required
+
+4. **Number of results?** → Fixed at k=100, not exposed to users
 
 ---
 
@@ -346,14 +368,18 @@ def restore_state_from_url(model, index, movies_df):
 
     elif mode == 'similar':
         movie = params.get('movie')
+        year = params.get('year')  # Optional year for disambiguation
         if movie:
             st.session_state.active_tab = "🎯 Similar Movies"
             st.session_state.similar_movies_target = movie
-            # Auto-trigger search
-            results = similar_movies_search(movie, model, index, movies_df, k=100)
+            # Auto-trigger search with optional year
+            results = similar_movies_search(
+                movie, model, index, movies_df, k=100, year=year
+            )
             st.session_state.similar_movies_results = results
 
     # ... handle other modes (blend, contrastive) ...
+    # Note: blend and contrastive modes will also need year handling
 ```
 
 ### 3. Add share button helper function:
@@ -428,12 +454,82 @@ def tab_semantic_search(model, index, movies_df):
         display_movie_grid(...)
 ```
 
+### 5. Example for Similar Movies tab (with year extraction):
+```python
+def tab_similar_movies(model, index, movies_df):
+    # ... existing code ...
+
+    # Display results if they exist
+    if "similar_movies_results" in st.session_state:
+        results = st.session_state.similar_movies_results
+
+        if len(results) > 0:
+            # Create columns for stats and share button
+            col1, col2 = st.columns([3, 1])
+
+            with col1:
+                # Display search stats
+                st.markdown(...)
+
+            with col2:
+                # === NEW: Share button with year ===
+                movie_title = st.session_state.similar_movies_target
+
+                # Get the year from the first result (the source movie)
+                source_movie = results.iloc[0]
+                movie_year = None
+                if 'year' in source_movie and pd.notna(source_movie['year']):
+                    movie_year = int(source_movie['year'])
+
+                # Generate URL with year for disambiguation
+                if movie_year:
+                    share_url = generate_share_url(
+                        'similar', movie=movie_title, year=movie_year
+                    )
+                else:
+                    share_url = generate_share_url('similar', movie=movie_title)
+
+                display_share_button(share_url)
+                # === END NEW ===
+```
+
+### 6. Update search functions to accept year parameter:
+
+You'll need to modify the search functions in `search.py` to accept optional `year` parameters:
+
+```python
+def similar_movies_search(
+    movie_title: str,
+    model: "SentenceTransformer",
+    index: "faiss.IndexFlatIP",
+    movies_df: pd.DataFrame,
+    k: int = 100,
+    year: Optional[int] = None,  # NEW parameter
+) -> pd.DataFrame:
+    """Find movies similar to a given movie."""
+    # Find the movie by title (case-insensitive)
+    movie_matches = movies_df[movies_df["title"].str.lower() == movie_title.lower()]
+
+    # NEW: Filter by year if provided
+    if year is not None and len(movie_matches) > 0:
+        movie_matches = movie_matches[movie_matches["year"] == year]
+
+    # If no matches with year, fall back to original behavior
+    if len(movie_matches) == 0:
+        movie_matches = movies_df[movies_df["title"].str.lower() == movie_title.lower()]
+
+    # ... rest of existing logic ...
+```
+
+Similar updates needed for `blend_movies()` and `contrastive_search()`.
+
 ## Next Steps
 
 1. Review and validate this plan
 2. Create implementation tasks in todo list
-3. Set up basic URL parameter handling
-4. Implement share button UI
-5. Test thoroughly with different search modes
-6. Handle edge cases (special characters, long queries)
-7. Deploy and monitor usage
+3. **Update search functions** to accept optional year parameters (search.py)
+4. Set up basic URL parameter handling (app.py)
+5. Implement share button UI
+6. Test thoroughly with different search modes
+7. Handle edge cases (duplicate titles, special characters, long queries)
+8. Deploy and monitor usage
