@@ -13,7 +13,7 @@ within functions to avoid slow startup times when not needed.
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -109,6 +109,7 @@ def contrastive_search(
     index: "faiss.IndexFlatIP",
     movies_df: pd.DataFrame,
     k: int = 100,
+    year: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     "Like X but not Y" search.
@@ -131,11 +132,16 @@ def contrastive_search(
         index: FAISS index
         movies_df: DataFrame with movie metadata
         k: Number of results to return (default 100 for pagination)
+        year: Optional year for disambiguating movies with same title
 
     Returns:
         DataFrame with top k movies (default 100 for pagination)
     """
-    logger.info(f"Contrastive search: Like '{like_movie_title}' but not '{avoid_text}'")
+    logger.info(
+        f"Contrastive search: Like '{like_movie_title}'"
+        + (f" ({year})" if year else "")
+        + f" but not '{avoid_text}'"
+    )
 
     # Find the movie by title (case-insensitive)
     # Try exact match first
@@ -151,6 +157,17 @@ def contrastive_search(
             .str.contains(like_movie_title.lower(), na=False)
         ]
 
+    # Filter by year if provided
+    if year is not None and len(movie_matches) > 0 and "year" in movies_df.columns:
+        year_matches = movie_matches[movie_matches["year"] == year]
+        if len(year_matches) > 0:
+            movie_matches = year_matches
+        else:
+            logger.warning(
+                f"No movie found with title '{like_movie_title}' "
+                f"and year {year}, using title match only"
+            )
+
     if len(movie_matches) == 0:
         logger.warning(f"Movie not found: '{like_movie_title}'")
         # Return empty dataframe with same columns
@@ -159,8 +176,9 @@ def contrastive_search(
         return result_df
 
     # Use the first match (most popular based on dataset order)
-    # If multiple matches, prefer more recent movies by sorting by year descending
-    if len(movie_matches) > 1 and "year" in movie_matches.columns:
+    # If multiple matches, prefer more recent movies by sorting
+    # by year descending (only if year not specified)
+    if len(movie_matches) > 1 and "year" in movie_matches.columns and year is None:
         movie_matches = movie_matches.sort_values("year", ascending=False)
 
     source_movie = movie_matches.iloc[0]
@@ -226,6 +244,8 @@ def blend_movies(
     index: "faiss.IndexFlatIP",
     movies_df: pd.DataFrame,
     k: int = 100,
+    year1: Optional[int] = None,
+    year2: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Find movies that combine two movies.
@@ -243,11 +263,18 @@ def blend_movies(
         index: FAISS index
         movies_df: DataFrame with movie metadata
         k: Number of results to return (default 100 for pagination)
+        year1: Optional year for disambiguating first movie
+        year2: Optional year for disambiguating second movie
 
     Returns:
         DataFrame with top k movies (default 100 for pagination)
     """
-    logger.info(f"Blending movies: '{movie1_title}' + '{movie2_title}'")
+    logger.info(
+        f"Blending movies: '{movie1_title}'"
+        + (f" ({year1})" if year1 else "")
+        + f" + '{movie2_title}'"
+        + (f" ({year2})" if year2 else "")
+    )
 
     # Find both movies by title (case-insensitive)
     # Try exact match first
@@ -263,6 +290,27 @@ def blend_movies(
             movies_df["title"].str.lower().str.contains(movie2_title.lower(), na=False)
         ]
 
+    # Filter by year if provided
+    if year1 is not None and len(movie1_matches) > 0 and "year" in movies_df.columns:
+        year1_matches = movie1_matches[movie1_matches["year"] == year1]
+        if len(year1_matches) > 0:
+            movie1_matches = year1_matches
+        else:
+            logger.warning(
+                f"No movie found with title '{movie1_title}' "
+                f"and year {year1}, using title match only"
+            )
+
+    if year2 is not None and len(movie2_matches) > 0 and "year" in movies_df.columns:
+        year2_matches = movie2_matches[movie2_matches["year"] == year2]
+        if len(year2_matches) > 0:
+            movie2_matches = year2_matches
+        else:
+            logger.warning(
+                f"No movie found with title '{movie2_title}' "
+                f"and year {year2}, using title match only"
+            )
+
     if len(movie1_matches) == 0:
         logger.warning(f"Movie 1 not found: '{movie1_title}'")
         result_df = movies_df.iloc[:0].copy()
@@ -275,10 +323,11 @@ def blend_movies(
         result_df["similarity"] = pd.Series(dtype=float)
         return result_df
 
-    # Use the first match for each, prefer more recent if multiple matches
-    if len(movie1_matches) > 1 and "year" in movie1_matches.columns:
+    # Use the first match for each, prefer more recent if multiple
+    # matches and no year specified
+    if len(movie1_matches) > 1 and "year" in movie1_matches.columns and year1 is None:
         movie1_matches = movie1_matches.sort_values("year", ascending=False)
-    if len(movie2_matches) > 1 and "year" in movie2_matches.columns:
+    if len(movie2_matches) > 1 and "year" in movie2_matches.columns and year2 is None:
         movie2_matches = movie2_matches.sort_values("year", ascending=False)
 
     movie1 = movie1_matches.iloc[0]
@@ -344,12 +393,13 @@ def similar_movies_search(
     index: "faiss.IndexFlatIP",
     movies_df: pd.DataFrame,
     k: int = 100,
+    year: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Find movies similar to a given movie.
 
     Implementation:
-    1. Find the movie by title
+    1. Find the movie by title (and optionally year)
     2. Get its embedding from the index by position
     3. Search with that embedding
     4. Include the source movie in results (per design spec)
@@ -360,11 +410,14 @@ def similar_movies_search(
         index: FAISS index
         movies_df: DataFrame with movie metadata
         k: Number of results to return (default 100)
+        year: Optional year for disambiguating movies with same title
 
     Returns:
         DataFrame with top k similar movies (including the source movie)
     """
-    logger.info(f"Finding movies similar to: '{movie_title}'")
+    logger.info(
+        f"Finding movies similar to: '{movie_title}'" + (f" ({year})" if year else "")
+    )
 
     # Find the movie by title (case-insensitive)
     # Try exact match first
@@ -376,6 +429,17 @@ def similar_movies_search(
             movies_df["title"].str.lower().str.contains(movie_title.lower(), na=False)
         ]
 
+    # Filter by year if provided
+    if year is not None and len(movie_matches) > 0 and "year" in movies_df.columns:
+        year_matches = movie_matches[movie_matches["year"] == year]
+        if len(year_matches) > 0:
+            movie_matches = year_matches
+        else:
+            logger.warning(
+                f"No movie found with title '{movie_title}' "
+                f"and year {year}, using title match only"
+            )
+
     if len(movie_matches) == 0:
         logger.warning(f"Movie not found: '{movie_title}'")
         # Return empty dataframe with same columns
@@ -383,8 +447,8 @@ def similar_movies_search(
         result_df["similarity"] = pd.Series(dtype=float)
         return result_df
 
-    # Use the first match (prefer more recent if multiple matches)
-    if len(movie_matches) > 1 and "year" in movie_matches.columns:
+    # Use the first match (prefer more recent if multiple matches and no year specified)
+    if len(movie_matches) > 1 and "year" in movie_matches.columns and year is None:
         movie_matches = movie_matches.sort_values("year", ascending=False)
 
     source_movie = movie_matches.iloc[0]

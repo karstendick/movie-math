@@ -7,11 +7,13 @@ and movie blending powered by RAG (Retrieval-Augmented Generation).
 
 import logging
 import time
+import urllib.parse
 from pathlib import Path
 from typing import List
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from search import (
     blend_movies,
@@ -288,6 +290,190 @@ def load_system():
     logger.info(f"Loaded {len(movies_df)} movies")
 
     return model, index, movies_df
+
+
+def generate_share_url(mode: str, **params) -> str:
+    """
+    Generate shareable URL from current state.
+
+    Args:
+        mode: Search mode ('semantic', 'similar', 'blend', 'contrastive')
+        **params: Additional parameters to encode in URL
+
+    Returns:
+        Full URL with query parameters
+    """
+    # Get base URL from Streamlit
+    # In production, this will be the actual deployment URL
+    # For local testing, it will be localhost
+    try:
+        base_url = st.get_option("browser.serverAddress")
+        if not base_url or base_url == "localhost":
+            port = st.get_option("server.port")
+            base_url = f"http://localhost:{port}"
+    except Exception:
+        # Fallback for deployed apps
+        base_url = ""
+
+    # Build query string
+    query_params = {"mode": mode}
+    query_params.update(params)
+    query_string = urllib.parse.urlencode(query_params)
+
+    return f"{base_url}?{query_string}"
+
+
+def display_share_button(share_url: str):
+    """
+    Display share button with JavaScript clipboard functionality.
+
+    Args:
+        share_url: URL to copy to clipboard
+    """
+    # Escape single quotes in URL for JavaScript
+    escaped_url = share_url.replace("'", "\\'")
+
+    components.html(
+        f"""
+        <div style="margin: 10px 0;">
+            <button onclick="copyLink()"
+                    style="background: #4CAF50; color: white; border: none;
+                           padding: 8px 16px; border-radius: 4px; cursor: pointer;
+                           font-size: 13px;">
+                🔗 Share
+            </button>
+            <span id="copy-feedback" style="margin-left: 10px; color: #4CAF50;
+                                            font-size: 12px; display: none;">
+                ✓ Link copied!
+            </span>
+        </div>
+        <script>
+        function copyLink() {{
+            navigator.clipboard.writeText('{escaped_url}')
+                .then(() => {{
+                    document.getElementById('copy-feedback').style.display = 'inline';
+                    setTimeout(() => {{
+                        document.getElementById('copy-feedback').style.display = 'none';
+                    }}, 2000);
+                }})
+                .catch(err => {{
+                    // Fallback for older browsers
+                    alert('Unable to copy. URL: {escaped_url}');
+                }});
+        }}
+        </script>
+    """,
+        height=50,
+    )
+
+
+def restore_state_from_url(model, index, movies_df):
+    """
+    Restore app state from URL query parameters.
+
+    Checks for URL parameters and auto-triggers searches if sharing params exist.
+    Only restores once per session to avoid blocking tab navigation.
+
+    Args:
+        model: SentenceTransformer model
+        index: FAISS index
+        movies_df: DataFrame with movie metadata
+    """
+    # Check if we've already restored from URL in this session
+    if "url_restored" in st.session_state and st.session_state.url_restored:
+        return  # Already restored, don't do it again
+
+    params = st.query_params
+
+    mode = params.get("mode")
+    if not mode:
+        return  # No shared state in URL
+
+    logger.info(f"Restoring state from URL: mode={mode}")
+
+    # Restore based on mode
+    if mode == "semantic":
+        query = params.get("q")
+        if query:
+            st.session_state.active_tab = "🔍 Semantic Search"
+            st.session_state.semantic_query_input = query
+            # Auto-trigger search
+            start_time = time.time()
+            results = semantic_search(query, model, index, movies_df, k=100)
+            search_time = time.time() - start_time
+            st.session_state.semantic_results = results
+            st.session_state.semantic_search_time = search_time
+            logger.info(f"Restored semantic search: '{query}'")
+
+    elif mode == "similar":
+        movie = params.get("movie")
+        year_str = params.get("year")
+        year = int(year_str) if year_str and year_str.isdigit() else None
+
+        if movie:
+            st.session_state.active_tab = "🎯 Similar Movies"
+            st.session_state.similar_movies_target = movie
+            # Auto-trigger search with optional year
+            start_time = time.time()
+            results = similar_movies_search(
+                movie, model, index, movies_df, k=100, year=year
+            )
+            search_time = time.time() - start_time
+            st.session_state.similar_movies_results = results
+            st.session_state.similar_movies_time = search_time
+            logger.info(
+                f"Restored similar movies search: '{movie}'"
+                + (f" ({year})" if year else "")
+            )
+
+    elif mode == "blend":
+        movie1 = params.get("movie1")
+        movie2 = params.get("movie2")
+        year1_str = params.get("year1")
+        year2_str = params.get("year2")
+        year1 = int(year1_str) if year1_str and year1_str.isdigit() else None
+        year2 = int(year2_str) if year2_str and year2_str.isdigit() else None
+
+        if movie1 and movie2:
+            st.session_state.active_tab = "🎬 Movie Blender"
+            # Auto-trigger search with optional years
+            start_time = time.time()
+            results = blend_movies(
+                movie1, movie2, model, index, movies_df, k=100, year1=year1, year2=year2
+            )
+            search_time = time.time() - start_time
+            st.session_state.blend_results = results
+            st.session_state.blend_search_time = search_time
+            st.session_state.blend_movie1 = movie1
+            st.session_state.blend_movie2 = movie2
+            logger.info(f"Restored blend search: '{movie1}' + '{movie2}'")
+
+    elif mode == "contrastive":
+        like_movie = params.get("like")
+        avoid = params.get("avoid")
+        year_str = params.get("likeyear")
+        year = int(year_str) if year_str and year_str.isdigit() else None
+
+        if like_movie and avoid:
+            st.session_state.active_tab = "💯 Like X But Not Y"
+            # Auto-trigger search with optional year
+            start_time = time.time()
+            results = contrastive_search(
+                like_movie, avoid, model, index, movies_df, k=100, year=year
+            )
+            search_time = time.time() - start_time
+            st.session_state.contrastive_results = results
+            st.session_state.contrastive_search_time = search_time
+            st.session_state.contrastive_like = like_movie
+            st.session_state.contrastive_avoid = avoid
+            logger.info(
+                f"Restored contrastive search: Like '{like_movie}' but not '{avoid}'"
+            )
+
+    # Mark that we've restored from URL and clear the params
+    st.session_state.url_restored = True
+    st.query_params.clear()
+    logger.info("URL parameters cleared after restoration")
 
 
 def get_movie_autocomplete_options(movies_df: pd.DataFrame) -> List[str]:
@@ -665,16 +851,26 @@ def tab_semantic_search(model, index, movies_df):
 
     # Display results if they exist
     if st.session_state.semantic_results is not None:
-        # Display search stats
+        # Display search stats and share button
         if "semantic_search_time" in st.session_state:
-            num_movies = len(movies_df)
-            search_time = st.session_state.semantic_search_time
-            st.markdown(
-                f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
-                f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+            col1, col2 = st.columns([4, 1])
+
+            with col1:
+                num_movies = len(movies_df)
+                search_time = st.session_state.semantic_search_time
+                st.markdown(
+                    f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
+                    f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+            with col2:
+                # Share button
+                query = st.session_state.semantic_query_input
+                if query:
+                    share_url = generate_share_url("semantic", q=query)
+                    display_share_button(share_url)
 
         display_movie_grid(
             st.session_state.semantic_results,
@@ -749,14 +945,44 @@ def tab_contrastive_search(model, index, movies_df):
                 f"Please try another movie."
             )
         else:
-            # Display search stats
-            num_movies = len(movies_df)
-            st.markdown(
-                f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
-                f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+            # Display search stats and share button
+            col1, col2 = st.columns([4, 1])
+
+            with col1:
+                num_movies = len(movies_df)
+                st.markdown(
+                    f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
+                    f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+            with col2:
+                # Share button with year for disambiguation
+                # Find the actual movie in the dataframe to get year
+                movie_data = movies_df[
+                    movies_df["title"].str.lower() == movie_title.lower()
+                ]
+
+                movie_year = None
+                if len(movie_data) > 0 and "year" in movie_data.columns:
+                    # Get the most recent if there are multiple
+                    if len(movie_data) > 1:
+                        movie_data = movie_data.sort_values("year", ascending=False)
+                    movie_year = (
+                        int(movie_data.iloc[0]["year"])
+                        if pd.notna(movie_data.iloc[0]["year"])
+                        else None
+                    )
+
+                # Generate URL with year for disambiguation
+                params = {"like": movie_title, "avoid": avoid_text}
+                if movie_year:
+                    params["likeyear"] = movie_year
+
+                share_url = generate_share_url("contrastive", **params)
+                display_share_button(share_url)
+
             display_movie_grid(
                 results, model, index, movies_df, cols=5, show_similarity=True
             )
@@ -815,14 +1041,54 @@ def tab_movie_blender(model, index, movies_df):
                 "One or both movies not found in the database. " "Please try again."
             )
         else:
-            # Display search stats
-            num_movies = len(movies_df)
-            st.markdown(
-                f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
-                f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+            # Display search stats and share button
+            col1, col2 = st.columns([4, 1])
+
+            with col1:
+                num_movies = len(movies_df)
+                st.markdown(
+                    f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
+                    f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+            with col2:
+                # Share button with years for disambiguation
+                # Find the actual movies in the dataframe to get years
+                movie1_data = movies_df[
+                    movies_df["title"].str.lower() == movie1_title.lower()
+                ]
+                movie2_data = movies_df[
+                    movies_df["title"].str.lower() == movie2_title.lower()
+                ]
+
+                movie1_year = None
+                movie2_year = None
+
+                if len(movie1_data) > 0 and "year" in movie1_data.columns:
+                    movie1_year = (
+                        int(movie1_data.iloc[0]["year"])
+                        if pd.notna(movie1_data.iloc[0]["year"])
+                        else None
+                    )
+                if len(movie2_data) > 0 and "year" in movie2_data.columns:
+                    movie2_year = (
+                        int(movie2_data.iloc[0]["year"])
+                        if pd.notna(movie2_data.iloc[0]["year"])
+                        else None
+                    )
+
+                # Generate URL with years for disambiguation
+                params = {"movie1": movie1_title, "movie2": movie2_title}
+                if movie1_year:
+                    params["year1"] = movie1_year
+                if movie2_year:
+                    params["year2"] = movie2_year
+
+                share_url = generate_share_url("blend", **params)
+                display_share_button(share_url)
+
             display_movie_grid(
                 results, model, index, movies_df, cols=5, show_similarity=True
             )
@@ -888,15 +1154,39 @@ def tab_similar_movies(model, index, movies_df):
         if len(results) == 0:
             st.error("Movie not found in the database. Please try another movie.")
         else:
-            # Display search stats
-            num_movies = len(movies_df)
-            search_time = st.session_state.similar_movies_time
-            st.markdown(
-                f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
-                f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+            # Display search stats and share button
+            col1, col2 = st.columns([4, 1])
+
+            with col1:
+                num_movies = len(movies_df)
+                search_time = st.session_state.similar_movies_time
+                st.markdown(
+                    f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
+                    f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+            with col2:
+                # Share button with year for disambiguation
+                movie_title = st.session_state.similar_movies_target
+
+                # Get the year from the first result (the source movie)
+                source_movie = results.iloc[0]
+                movie_year = None
+                if "year" in source_movie and pd.notna(source_movie["year"]):
+                    movie_year = int(source_movie["year"])
+
+                # Generate URL with year for disambiguation
+                if movie_year:
+                    share_url = generate_share_url(
+                        "similar", movie=movie_title, year=movie_year
+                    )
+                else:
+                    share_url = generate_share_url("similar", movie=movie_title)
+
+                display_share_button(share_url)
+
             display_movie_grid(
                 results, model, index, movies_df, cols=5, show_similarity=True
             )
@@ -909,6 +1199,9 @@ def main():
 
     # Load search system
     model, index, movies_df = load_system()
+
+    # Restore state from URL parameters (for sharing)
+    restore_state_from_url(model, index, movies_df)
 
     # Compact header
     st.markdown("## \U0001f3ac Movie Math")
