@@ -858,9 +858,11 @@ def tab_semantic_search(model, index, movies_df):
             with col1:
                 num_movies = len(movies_df)
                 search_time = st.session_state.semantic_search_time
+                embedding_dim = model.get_sentence_embedding_dimension()
                 st.markdown(
                     f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
-                    f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                    f"\U0001f4ca Searched {num_movies:,} movies in "
+                    f"{embedding_dim}-dimensional space in {search_time:.2f}s"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
@@ -950,9 +952,11 @@ def tab_contrastive_search(model, index, movies_df):
 
             with col1:
                 num_movies = len(movies_df)
+                embedding_dim = model.get_sentence_embedding_dimension()
                 st.markdown(
                     f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
-                    f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                    f"\U0001f4ca Searched {num_movies:,} movies in "
+                    f"{embedding_dim}-dimensional space in {search_time:.2f}s"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
@@ -1046,9 +1050,11 @@ def tab_movie_blender(model, index, movies_df):
 
             with col1:
                 num_movies = len(movies_df)
+                embedding_dim = model.get_sentence_embedding_dimension()
                 st.markdown(
                     f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
-                    f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                    f"\U0001f4ca Searched {num_movies:,} movies in "
+                    f"{embedding_dim}-dimensional space in {search_time:.2f}s"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
@@ -1160,9 +1166,11 @@ def tab_similar_movies(model, index, movies_df):
             with col1:
                 num_movies = len(movies_df)
                 search_time = st.session_state.similar_movies_time
+                embedding_dim = model.get_sentence_embedding_dimension()
                 st.markdown(
                     f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
-                    f"\U0001f4ca Searched {num_movies:,} movies in {search_time:.2f}s"
+                    f"\U0001f4ca Searched {num_movies:,} movies in "
+                    f"{embedding_dim}-dimensional space in {search_time:.2f}s"
                     f"</div>",
                     unsafe_allow_html=True,
                 )

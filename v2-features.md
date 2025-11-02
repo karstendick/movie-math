@@ -39,7 +39,7 @@ This document contains potential features and improvements to implement after th
   - View raw embedding vectors for any movie
   - Compare embedding similarity between any two movies
   - Show which text fields contributed most to a movie's embedding
-  - Display FAISS index statistics (size, dimensions, number of vectors)
+  - ✅ Display FAISS index statistics (size, dimensions, number of vectors)
 
 - **Search explainability:**
   - ✅ Visualize cosine similarity scores for top results
