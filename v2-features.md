@@ -42,7 +42,7 @@ This document contains potential features and improvements to implement after th
   - Display FAISS index statistics (size, dimensions, number of vectors)
 
 - **Search explainability:**
-  - Visualize cosine similarity scores for top results
+  - ✅ Visualize cosine similarity scores for top results
   - Show the generated embedding for user queries
   - Highlight which query terms matched which movie attributes
   - Side-by-side comparison of query vector vs. result vectors
