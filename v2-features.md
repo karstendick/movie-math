@@ -52,9 +52,18 @@ This document contains potential features and improvements to implement after th
   - **Additional features to implement:**
     - ✅ Interactive scatter plot with hover tooltips
     - ✅ Highlight current search results in the visualization
-    - Color-code by genre, decade, or rating
-    - Toggle genres on/off for filtering
-    - Click a movie in the plot to see similar movies
+    - **Color-code by genre, decade, or rating:**
+      - Add dropdown above visualization to select color scheme
+      - Genre: Color by primary genre (Action=red, Drama=blue, Comedy=yellow, etc.)
+      - Decade: Color gradient from 1970s (purple) to 2020s (orange)
+      - Rating: Color gradient from low (red) to high (green) ratings
+      - Update legend dynamically based on selected scheme
+    - **Click a movie in the plot → jump to Similar Movies tab:**
+      - Make visualization points clickable using Plotly's click events
+      - When user clicks a movie, switch to Similar Movies tab
+      - Pre-populate dropdown with clicked movie
+      - Automatically trigger search for similar movies
+      - Provides seamless exploration of the embedding space
 
 - **Index inspection tools:**
   - View raw embedding vectors for any movie
@@ -70,9 +79,40 @@ This document contains potential features and improvements to implement after th
 
 - **Debug/learning mode:**
   - Toggle to show technical details (embedding distances, retrieval times)
-  - Export search results with similarity scores to JSON
-  - "Behind the scenes" tab explaining how the RAG system works
-  - Example queries with explanations of why results were returned
+  - **Export search results with similarity scores to JSON:**
+    - Add download button below search results
+    - Export includes: movie metadata, similarity scores, search params
+    - Useful for analysis and debugging
+  - **"Behind the Scenes" educational tab:**
+    - **Goal: Portfolio differentiator showing deep RAG understanding**
+    - Add new 5th tab explaining how the system works end-to-end
+    - **Content sections:**
+      1. **System Architecture Overview:**
+         - Visual diagram: User Query → Embeddings → FAISS → Results
+         - Explain each component's role
+      2. **How Embeddings Work:**
+         - What are embeddings? (text → 384-dimensional vectors)
+         - Show example embedding visualization (heatmap/bar chart)
+         - Why sentence-transformers model specifically?
+      3. **FAISS Index Deep Dive:**
+         - What is FAISS and why use it?
+         - Cosine similarity explained with visual
+         - How we build the index (point to setup.py code)
+      4. **Search Types Explained:**
+         - Semantic: query embedding vs movie embeddings
+         - Contrastive: positive + negative embedding math
+         - Blending: averaging two movie embeddings
+         - Similar: finding nearest neighbors in embedding space
+      5. **UMAP Visualization Explained:**
+         - Why reduce 384D → 2D?
+         - How UMAP preserves structure
+         - Interpreting the visualization
+      6. **Interactive Demos:**
+         - Select a movie → show its embedding vector
+         - Show sample query → embedding → search process
+         - Compare embeddings of two movies
+    - **Link to actual code** (GitHub or code snippets)
+    - Showcases technical depth for portfolio viewers
 
 ---
 
