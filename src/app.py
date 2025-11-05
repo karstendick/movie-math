@@ -9,9 +9,11 @@ import logging
 import time
 import urllib.parse
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
+import numpy as np
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -261,7 +263,8 @@ def load_system():
     - Show error message and stop if files missing
 
     Returns:
-        (model, index, movies_df)
+        (model, index, movies_df, embeddings_2d)
+        embeddings_2d will be None if not available
     """
     index_dir = Path("data/index")
 
@@ -289,7 +292,20 @@ def load_system():
     model, index, movies_df = load_search_system(index_dir)
     logger.info(f"Loaded {len(movies_df)} movies")
 
-    return model, index, movies_df
+    # Load 2D embeddings for visualization (optional)
+    embeddings_2d_path = index_dir / "embeddings_2d.npy"
+    embeddings_2d = None
+    if embeddings_2d_path.exists():
+        logger.info("Loading 2D embeddings for visualization...")
+        embeddings_2d = np.load(embeddings_2d_path)
+        logger.info(f"Loaded 2D embeddings: {embeddings_2d.shape}")
+    else:
+        logger.warning(
+            "2D embeddings not found. Visualization feature will be unavailable."
+        )
+        logger.warning("Run 'python setup.py --regenerate-index' to generate them.")
+
+    return model, index, movies_df, embeddings_2d
 
 
 def generate_share_url(mode: str, **params) -> str:
@@ -780,7 +796,130 @@ def display_footer():
     )
 
 
-def tab_semantic_search(model, index, movies_df):
+def display_embedding_visualization(
+    embeddings_2d: np.ndarray,
+    movies_df: pd.DataFrame,
+    search_results: Optional[pd.DataFrame] = None,
+):
+    """
+    Display interactive 2D embedding space visualization using Plotly.
+
+    Shows all movies in the embedding space with search results highlighted.
+
+    Args:
+        embeddings_2d: 2D coordinates (n_movies, 2) from UMAP
+        movies_df: Full movie metadata DataFrame
+        search_results: Optional DataFrame of search results to highlight
+    """
+    if embeddings_2d is None:
+        st.warning(
+            "Embedding visualization is not available. "
+            "Run `python setup.py --regenerate-index` to generate 2D embeddings."
+        )
+        return
+
+    # Create a copy of movies_df with 2D coordinates
+    viz_df = movies_df.copy()
+    viz_df["x"] = embeddings_2d[:, 0]
+    viz_df["y"] = embeddings_2d[:, 1]
+
+    # Mark which movies are in search results
+    viz_df["is_result"] = False
+    viz_df["result_rank"] = None
+
+    if search_results is not None and len(search_results) > 0:
+        # Get indices of search results
+        result_indices = search_results.index.tolist()
+        viz_df.loc[result_indices, "is_result"] = True
+        # Add ranking for hover info
+        for rank, idx in enumerate(result_indices, 1):
+            viz_df.loc[idx, "result_rank"] = rank
+
+    # Create hover text with movie info
+    def create_hover_text(row):
+        year_str = int(row["year"]) if pd.notna(row["year"]) else "N/A"
+        genres_str = (
+            ", ".join(row["genres"][:3]) if isinstance(row["genres"], list) else "N/A"
+        )
+        result_str = (
+            f"<br><b>Result #{int(row['result_rank'])}</b>" if row["is_result"] else ""
+        )
+        return (
+            f"<b>{row['title']}</b> ({year_str})<br>"
+            f"Rating: {row['rating']:.1f}/10<br>"
+            f"Genres: {genres_str}{result_str}"
+        )
+
+    viz_df["hover_text"] = viz_df.apply(create_hover_text, axis=1)
+
+    # Split into two groups: regular movies and search results
+    regular_movies = viz_df[~viz_df["is_result"]]
+    result_movies = viz_df[viz_df["is_result"]]
+
+    # Create Plotly figure
+    fig = px.scatter()
+
+    # Add regular movies (gray, small, low opacity)
+    fig.add_scatter(
+        x=regular_movies["x"],
+        y=regular_movies["y"],
+        mode="markers",
+        marker=dict(
+            size=3,
+            color="lightgray",
+            opacity=0.3,
+        ),
+        hovertext=regular_movies["hover_text"],
+        hoverinfo="text",
+        name="All Movies",
+        showlegend=True,
+    )
+
+    # Add search results (highlighted, larger, full opacity)
+    if len(result_movies) > 0:
+        fig.add_scatter(
+            x=result_movies["x"],
+            y=result_movies["y"],
+            mode="markers",
+            marker=dict(
+                size=8,
+                color="#4CAF50",  # Green
+                opacity=1.0,
+                line=dict(width=1, color="white"),
+            ),
+            hovertext=result_movies["hover_text"],
+            hoverinfo="text",
+            name="Search Results",
+            showlegend=True,
+        )
+
+    # Update layout
+    fig.update_layout(
+        title="Movie Embedding Space (UMAP 2D Projection)",
+        xaxis_title="UMAP Dimension 1",
+        yaxis_title="UMAP Dimension 2",
+        hovermode="closest",
+        height=600,
+        showlegend=True,
+        legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99),
+        margin=dict(l=40, r=40, t=60, b=40),
+    )
+
+    # Display the plot
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Add explanation text
+    st.markdown(
+        '<div style="color: #666; font-size: 12px; margin-top: 0.5rem;">'
+        "This visualization shows how movies are organized in semantic space. "
+        "Movies close together have similar themes, tones, and characteristics. "
+        "Green points highlight your current search results."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def tab_semantic_search(model, index, movies_df, embeddings_2d):
     """
     Tab 1: Basic semantic search.
 
@@ -851,9 +990,9 @@ def tab_semantic_search(model, index, movies_df):
 
     # Display results if they exist
     if st.session_state.semantic_results is not None:
-        # Display search stats and share button
+        # Display search stats, share button, and visualize button
         if "semantic_search_time" in st.session_state:
-            col1, col2 = st.columns([4, 1])
+            col1, col2, col3 = st.columns([3, 1, 1])
 
             with col1:
                 num_movies = len(movies_df)
@@ -874,6 +1013,31 @@ def tab_semantic_search(model, index, movies_df):
                     share_url = generate_share_url("semantic", q=query)
                     display_share_button(share_url)
 
+            with col3:
+                # Visualize button - toggle visualization
+                if embeddings_2d is not None:
+                    if st.button(
+                        "\U0001f4ca Visualize",
+                        key="semantic_viz_btn",
+                        use_container_width=True,
+                    ):
+                        # Toggle visualization state
+                        if "show_semantic_viz" not in st.session_state:
+                            st.session_state.show_semantic_viz = False
+                        st.session_state.show_semantic_viz = (
+                            not st.session_state.show_semantic_viz
+                        )
+
+        # Display visualization if toggled on
+        if (
+            st.session_state.get("show_semantic_viz", False)
+            and embeddings_2d is not None
+        ):
+            display_embedding_visualization(
+                embeddings_2d, movies_df, st.session_state.semantic_results
+            )
+
+        # Display movie grid
         display_movie_grid(
             st.session_state.semantic_results,
             model,
@@ -884,7 +1048,7 @@ def tab_semantic_search(model, index, movies_df):
         )
 
 
-def tab_contrastive_search(model, index, movies_df):
+def tab_contrastive_search(model, index, movies_df, embeddings_2d):
     """
     Tab 2: Like X But Not Y.
 
@@ -893,6 +1057,14 @@ def tab_contrastive_search(model, index, movies_df):
     - Text input for "avoid" aspects
     - Result grid
     """
+    # Initialize session state
+    if "contrastive_results" not in st.session_state:
+        st.session_state.contrastive_results = None
+    if "contrastive_movie_title" not in st.session_state:
+        st.session_state.contrastive_movie_title = ""
+    if "contrastive_avoid_text" not in st.session_state:
+        st.session_state.contrastive_avoid_text = ""
+
     # Get autocomplete options
     movie_options = get_movie_autocomplete_options(movies_df)
 
@@ -923,6 +1095,7 @@ def tab_contrastive_search(model, index, movies_df):
                 "Search", use_container_width=True, type="primary"
             )
 
+    # Execute search if form submitted
     if (
         search_submitted
         and selected_movie
@@ -946,12 +1119,23 @@ def tab_contrastive_search(model, index, movies_df):
                 f"Movie '{movie_title}' not found in the database. "
                 f"Please try another movie."
             )
+            st.session_state.contrastive_results = None
         else:
-            # Display search stats and share button
-            col1, col2 = st.columns([4, 1])
+            # Store results in session state
+            st.session_state.contrastive_results = results
+            st.session_state.contrastive_search_time = search_time
+            st.session_state.contrastive_movie_title = movie_title
+            st.session_state.contrastive_avoid_text = avoid_text
+
+    # Display results if they exist
+    if st.session_state.contrastive_results is not None:
+        # Display search stats, share button, and visualize button
+        if "contrastive_search_time" in st.session_state:
+            col1, col2, col3 = st.columns([3, 1, 1])
 
             with col1:
                 num_movies = len(movies_df)
+                search_time = st.session_state.contrastive_search_time
                 embedding_dim = model.get_sentence_embedding_dimension()
                 st.markdown(
                     f'<div style="color: #666; font-size: 13px; margin-bottom: 1rem;">'
@@ -963,6 +1147,9 @@ def tab_contrastive_search(model, index, movies_df):
 
             with col2:
                 # Share button with year for disambiguation
+                movie_title = st.session_state.contrastive_movie_title
+                avoid_text = st.session_state.contrastive_avoid_text
+
                 # Find the actual movie in the dataframe to get year
                 movie_data = movies_df[
                     movies_df["title"].str.lower() == movie_title.lower()
@@ -987,12 +1174,42 @@ def tab_contrastive_search(model, index, movies_df):
                 share_url = generate_share_url("contrastive", **params)
                 display_share_button(share_url)
 
+            with col3:
+                # Visualize button - toggle visualization
+                if embeddings_2d is not None:
+                    if st.button(
+                        "\U0001f4ca Visualize",
+                        key="contrastive_viz_btn",
+                        use_container_width=True,
+                    ):
+                        # Toggle visualization state
+                        if "show_contrastive_viz" not in st.session_state:
+                            st.session_state.show_contrastive_viz = False
+                        st.session_state.show_contrastive_viz = (
+                            not st.session_state.show_contrastive_viz
+                        )
+
+            # Display visualization if toggled on
+            if (
+                st.session_state.get("show_contrastive_viz", False)
+                and embeddings_2d is not None
+            ):
+                display_embedding_visualization(
+                    embeddings_2d, movies_df, st.session_state.contrastive_results
+                )
+
+            # Display movie grid
             display_movie_grid(
-                results, model, index, movies_df, cols=5, show_similarity=True
+                st.session_state.contrastive_results,
+                model,
+                index,
+                movies_df,
+                cols=5,
+                show_similarity=True,
             )
 
 
-def tab_movie_blender(model, index, movies_df):
+def tab_movie_blender(model, index, movies_df, embeddings_2d):
     """
     Tab 3: Blend two movies.
 
@@ -1045,8 +1262,8 @@ def tab_movie_blender(model, index, movies_df):
                 "One or both movies not found in the database. " "Please try again."
             )
         else:
-            # Display search stats and share button
-            col1, col2 = st.columns([4, 1])
+            # Display search stats, share button, and visualize button
+            col1, col2, col3 = st.columns([3, 1, 1])
 
             with col1:
                 num_movies = len(movies_df)
@@ -1095,12 +1312,35 @@ def tab_movie_blender(model, index, movies_df):
                 share_url = generate_share_url("blend", **params)
                 display_share_button(share_url)
 
+            with col3:
+                # Visualize button - toggle visualization
+                if embeddings_2d is not None:
+                    if st.button(
+                        "\U0001f4ca Visualize",
+                        key="blend_viz_btn",
+                        use_container_width=True,
+                    ):
+                        # Toggle visualization state
+                        if "show_blend_viz" not in st.session_state:
+                            st.session_state.show_blend_viz = False
+                        st.session_state.show_blend_viz = (
+                            not st.session_state.show_blend_viz
+                        )
+
+            # Display visualization if toggled on
+            if (
+                st.session_state.get("show_blend_viz", False)
+                and embeddings_2d is not None
+            ):
+                display_embedding_visualization(embeddings_2d, movies_df, results)
+
+            # Display movie grid
             display_movie_grid(
                 results, model, index, movies_df, cols=5, show_similarity=True
             )
 
 
-def tab_similar_movies(model, index, movies_df):
+def tab_similar_movies(model, index, movies_df, embeddings_2d):
     """
     Tab 4: Similar Movies.
 
@@ -1152,6 +1392,7 @@ def tab_similar_movies(model, index, movies_df):
             search_time = time.time() - start_time
             st.session_state.similar_movies_results = results
             st.session_state.similar_movies_time = search_time
+            st.session_state.similar_movies_target = movie_title
 
     # Display results if they exist
     if "similar_movies_results" in st.session_state:
@@ -1160,8 +1401,8 @@ def tab_similar_movies(model, index, movies_df):
         if len(results) == 0:
             st.error("Movie not found in the database. Please try another movie.")
         else:
-            # Display search stats and share button
-            col1, col2 = st.columns([4, 1])
+            # Display search stats, share button, and visualize button
+            col1, col2, col3 = st.columns([3, 1, 1])
 
             with col1:
                 num_movies = len(movies_df)
@@ -1195,6 +1436,29 @@ def tab_similar_movies(model, index, movies_df):
 
                 display_share_button(share_url)
 
+            with col3:
+                # Visualize button - toggle visualization
+                if embeddings_2d is not None:
+                    if st.button(
+                        "\U0001f4ca Visualize",
+                        key="similar_viz_btn",
+                        use_container_width=True,
+                    ):
+                        # Toggle visualization state
+                        if "show_similar_viz" not in st.session_state:
+                            st.session_state.show_similar_viz = False
+                        st.session_state.show_similar_viz = (
+                            not st.session_state.show_similar_viz
+                        )
+
+            # Display visualization if toggled on
+            if (
+                st.session_state.get("show_similar_viz", False)
+                and embeddings_2d is not None
+            ):
+                display_embedding_visualization(embeddings_2d, movies_df, results)
+
+            # Display movie grid
             display_movie_grid(
                 results, model, index, movies_df, cols=5, show_similarity=True
             )
@@ -1206,7 +1470,7 @@ def main():
     inject_custom_css()
 
     # Load search system
-    model, index, movies_df = load_system()
+    model, index, movies_df, embeddings_2d = load_system()
 
     # Restore state from URL parameters (for sharing)
     restore_state_from_url(model, index, movies_df)
@@ -1239,13 +1503,13 @@ def main():
 
     # Display the active tab content
     if active_tab == "\U0001f50d Semantic Search":
-        tab_semantic_search(model, index, movies_df)
+        tab_semantic_search(model, index, movies_df, embeddings_2d)
     elif active_tab == "\U0001f3af Similar Movies":
-        tab_similar_movies(model, index, movies_df)
+        tab_similar_movies(model, index, movies_df, embeddings_2d)
     elif active_tab == "\U0001f3ac Movie Blender":
-        tab_movie_blender(model, index, movies_df)
+        tab_movie_blender(model, index, movies_df, embeddings_2d)
     elif active_tab == "\U0001f4af Like X But Not Y":
-        tab_contrastive_search(model, index, movies_df)
+        tab_contrastive_search(model, index, movies_df, embeddings_2d)
 
     # Footer
     display_footer()

@@ -29,11 +29,32 @@ This document contains potential features and improvements to implement after th
 ### RAG Visualization & Learning Features
 **Goal: Showcase RAG understanding and portfolio value**
 
-- **Embedding space visualization:**
-  - 2D/3D projection of movie embeddings (UMAP/t-SNE)
-  - Interactive scatter plot where you can hover/click movies
-  - Color-code by genre, decade, or rating
-  - Show query vector and nearest neighbors in the space
+- **✅ Embedding space visualization:**
+  - **Design decisions:**
+    - ✅ Use **UMAP** for dimensionality reduction (384D → 2D)
+      - Better preservation of both local and global structure vs t-SNE
+      - Fast computation (~10-30s for 20k movies)
+      - Use cosine metric to match FAISS similarity
+    - ✅ **Precompute** 2D coordinates during setup
+      - Save to `data/index/embeddings_2d.npy`
+      - Make step idempotent: check if file exists before recomputing
+      - Skip UMAP if embeddings_2d.npy already exists
+      - Load instantly when app starts (no performance hit)
+    - ✅ Use **Plotly** for interactive visualization
+      - Hover tooltips showing movie title, year, genres
+      - Zoom, pan, and selection capabilities
+      - Streamlit integration via `st.plotly_chart()`
+  - **UI Design:**
+    - ✅ Add "📊 Visualize" button next to search stats (after Share button)
+    - ✅ Button expands inline visualization below search stats
+    - ✅ Shows all movies in the space with search results highlighted
+    - ✅ Can collapse visualization to return to grid view
+  - **Additional features to implement:**
+    - ✅ Interactive scatter plot with hover tooltips
+    - ✅ Highlight current search results in the visualization
+    - Color-code by genre, decade, or rating
+    - Toggle genres on/off for filtering
+    - Click a movie in the plot to see similar movies
 
 - **Index inspection tools:**
   - View raw embedding vectors for any movie

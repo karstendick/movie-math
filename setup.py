@@ -15,6 +15,8 @@ import logging
 import os
 from pathlib import Path
 
+import numpy as np
+import umap
 from dotenv import load_dotenv
 
 from src.data_preparation import (
@@ -66,6 +68,44 @@ def index_exists():
     embeddings_path = Path("data/index/embeddings.npy")
     metadata_path = Path("data/index/movie_metadata.parquet")
     return index_path.exists() and embeddings_path.exists() and metadata_path.exists()
+
+
+def compute_2d_embeddings(embeddings, output_dir):
+    """
+    Compute 2D embeddings using UMAP for visualization.
+
+    This function is idempotent - it will skip computation if the file already exists.
+
+    Args:
+        embeddings: numpy array of shape (n_movies, embedding_dim)
+        output_dir: Path to save the 2D embeddings
+    """
+    embeddings_2d_path = output_dir / "embeddings_2d.npy"
+
+    if embeddings_2d_path.exists():
+        logger.info("2D embeddings already exist, skipping UMAP computation")
+        return
+
+    logger.info("Computing 2D embeddings with UMAP...")
+    logger.info("This may take 10-30 seconds for ~20k movies...")
+
+    # Create UMAP reducer with parameters optimized for semantic embeddings
+    reducer = umap.UMAP(
+        n_neighbors=15,  # Balance local clusters and global structure
+        min_dist=0.1,  # Slight spacing between points
+        metric="cosine",  # Match FAISS similarity metric
+        n_components=2,  # 2D output for visualization
+        random_state=42,  # Reproducibility
+        verbose=True,  # Show progress
+    )
+
+    # Fit and transform embeddings to 2D
+    embeddings_2d = reducer.fit_transform(embeddings)
+
+    # Save 2D embeddings
+    np.save(embeddings_2d_path, embeddings_2d)
+    logger.info(f"Saved 2D embeddings to {embeddings_2d_path}")
+    logger.info(f"2D embeddings shape: {embeddings_2d.shape}")
 
 
 def main():
@@ -200,23 +240,27 @@ def main():
 
         try:
             # Load embedding model
-            logger.info("Step 1/4: Loading embedding model...")
+            logger.info("Step 1/5: Loading embedding model...")
             model = load_embedding_model()
 
             # Generate embeddings
-            logger.info("Step 2/4: Generating embeddings...")
+            logger.info("Step 2/5: Generating embeddings...")
             logger.info("This may take 10-20 minutes depending on your CPU...")
             search_texts = movies_df["search_text"].tolist()
             embeddings = generate_embeddings(search_texts, model, batch_size=32)
 
             # Build FAISS index
-            logger.info("Step 3/4: Building FAISS index...")
+            logger.info("Step 3/5: Building FAISS index...")
             index = build_faiss_index(embeddings)
 
             # Save everything
-            logger.info("Step 4/4: Saving index and embeddings...")
+            logger.info("Step 4/5: Saving index and embeddings...")
             output_dir = Path("data/index")
             save_index_and_embeddings(index, embeddings, movies_df, output_dir)
+
+            # Compute 2D embeddings for visualization
+            logger.info("Step 5/5: Computing 2D embeddings for visualization...")
+            compute_2d_embeddings(embeddings, output_dir)
 
             # Display Phase 2 summary
             logger.info("=" * 60)
