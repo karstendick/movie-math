@@ -480,8 +480,8 @@ def restore_state_from_url(model, index, movies_df):
             search_time = time.time() - start_time
             st.session_state.contrastive_results = results
             st.session_state.contrastive_search_time = search_time
-            st.session_state.contrastive_like = like_movie
-            st.session_state.contrastive_avoid = avoid
+            st.session_state.contrastive_movie_title = like_movie
+            st.session_state.contrastive_avoid_text = avoid
             logger.info(
                 f"Restored contrastive search: Like '{like_movie}' but not '{avoid}'"
             )
@@ -964,6 +964,7 @@ def tab_semantic_search(model, index, movies_df, embeddings_2d):
         with col1:
             query = st.text_input(
                 "Search for movies by theme, mood, or description",
+                value=st.session_state.semantic_query_input,
                 key="semantic_query_input",
                 placeholder="e.g., movies about the cost of ambition",
                 help=(
@@ -1068,13 +1069,32 @@ def tab_contrastive_search(model, index, movies_df, embeddings_2d):
     # Get autocomplete options
     movie_options = get_movie_autocomplete_options(movies_df)
 
+    # Check if we have saved values from URL restore and find the index
+    default_movie_index = 0
+    default_avoid_text = ""
+
+    if st.session_state.contrastive_movie_title:
+        target_movie = st.session_state.contrastive_movie_title
+        # Find matching option in the list
+        matching_options = [
+            opt
+            for opt in movie_options
+            if opt.startswith(target_movie + " (") or opt == target_movie
+        ]
+        if matching_options:
+            # Find index in the full list (add 1 for the empty string at index 0)
+            default_movie_index = movie_options.index(matching_options[0]) + 1
+
+    if st.session_state.contrastive_avoid_text:
+        default_avoid_text = st.session_state.contrastive_avoid_text
+
     # Search form (allows Enter key submission)
     with st.form(key="contrastive_search_form"):
         # Movie selection with autocomplete
         selected_movie = st.selectbox(
             "Select a movie you like:",
             options=[""] + movie_options,
-            index=0,
+            index=default_movie_index,
             placeholder="Search for a movie...",
             help="Start typing to search for movies in the database",
         )
@@ -1085,6 +1105,7 @@ def tab_contrastive_search(model, index, movies_df, embeddings_2d):
         with col1:
             avoid_text = st.text_input(
                 "What aspects do you want to avoid?",
+                value=default_avoid_text,
                 placeholder="e.g., confusing, violent, sad",
                 help="Describe themes, tones, or elements you want to avoid",
             )
@@ -1221,6 +1242,32 @@ def tab_movie_blender(model, index, movies_df, embeddings_2d):
     # Get autocomplete options
     movie_options = get_movie_autocomplete_options(movies_df)
 
+    # Check if we have saved values from URL restore and find their indices
+    default_movie1_index = 0
+    default_movie2_index = 0
+
+    if "blend_movie1" in st.session_state and st.session_state.blend_movie1:
+        target_movie = st.session_state.blend_movie1
+        # Find matching option in the list
+        matching_options = [
+            opt
+            for opt in movie_options
+            if opt.startswith(target_movie + " (") or opt == target_movie
+        ]
+        if matching_options:
+            default_movie1_index = movie_options.index(matching_options[0]) + 1
+
+    if "blend_movie2" in st.session_state and st.session_state.blend_movie2:
+        target_movie = st.session_state.blend_movie2
+        # Find matching option in the list
+        matching_options = [
+            opt
+            for opt in movie_options
+            if opt.startswith(target_movie + " (") or opt == target_movie
+        ]
+        if matching_options:
+            default_movie2_index = movie_options.index(matching_options[0]) + 1
+
     # Two movie selections
     col1, col2 = st.columns(2)
 
@@ -1228,7 +1275,7 @@ def tab_movie_blender(model, index, movies_df, embeddings_2d):
         movie1 = st.selectbox(
             "Select first movie:",
             options=[""] + movie_options,
-            index=0,
+            index=default_movie1_index,
             key="blend_movie1_select",
             placeholder="Search for a movie...",
             help="Choose the first movie to blend",
@@ -1238,7 +1285,7 @@ def tab_movie_blender(model, index, movies_df, embeddings_2d):
         movie2 = st.selectbox(
             "Select second movie:",
             options=[""] + movie_options,
-            index=0,
+            index=default_movie2_index,
             key="blend_movie2_select",
             placeholder="Search for a movie...",
             help="Choose the second movie to blend",
