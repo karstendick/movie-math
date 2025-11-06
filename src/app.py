@@ -6,6 +6,7 @@ and movie blending powered by RAG (Retrieval-Augmented Generation).
 """
 
 import logging
+import os
 import time
 import urllib.parse
 from pathlib import Path
@@ -317,25 +318,22 @@ def generate_share_url(mode: str, **params) -> str:
         **params: Additional parameters to encode in URL
 
     Returns:
-        Full URL with query parameters
+        Complete shareable URL (works for both local and deployed)
     """
-    # Get base URL from Streamlit
-    # In production, this will be the actual deployment URL
-    # For local testing, it will be localhost
-    try:
-        base_url = st.get_option("browser.serverAddress")
-        if not base_url or base_url == "localhost":
-            port = st.get_option("server.port")
-            base_url = f"http://localhost:{port}"
-    except Exception:
-        # Fallback for deployed apps
-        base_url = ""
+    # Detect environment - Streamlit Cloud sets STREAMLIT_SHARING_MODE env var
+    is_cloud = os.getenv("STREAMLIT_SHARING_MODE") is not None
+
+    if is_cloud:
+        base_url = "https://movie-math.streamlit.app"
+    else:
+        base_url = "http://localhost:8501"
 
     # Build query string
     query_params = {"mode": mode}
     query_params.update(params)
     query_string = urllib.parse.urlencode(query_params)
 
+    # Return complete URL
     return f"{base_url}?{query_string}"
 
 
@@ -365,7 +363,9 @@ def display_share_button(share_url: str):
         </div>
         <script>
         function copyLink() {{
-            navigator.clipboard.writeText('{escaped_url}')
+            const fullUrl = '{escaped_url}';
+
+            navigator.clipboard.writeText(fullUrl)
                 .then(() => {{
                     document.getElementById('copy-feedback').style.display = 'inline';
                     setTimeout(() => {{
@@ -374,7 +374,7 @@ def display_share_button(share_url: str):
                 }})
                 .catch(err => {{
                     // Fallback for older browsers
-                    alert('Unable to copy. URL: {escaped_url}');
+                    alert('Unable to copy. URL: ' + fullUrl);
                 }});
         }}
         </script>
